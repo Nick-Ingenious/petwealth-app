@@ -1,6 +1,8 @@
+import { existsSync } from "node:fs";
 import { defineConfig } from "drizzle-kit";
 
-process.loadEnvFile?.("../../.env");
+// Local dev reads the monorepo-root .env; CI and Vercel inject env vars directly.
+if (existsSync("../../.env")) process.loadEnvFile("../../.env");
 
 export default defineConfig({
   schema: "./src/schema.ts",

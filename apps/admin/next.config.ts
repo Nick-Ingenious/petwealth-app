@@ -1,6 +1,8 @@
+import { existsSync } from "node:fs";
 import type { NextConfig } from "next";
 
-process.loadEnvFile?.("../../.env");
+// Local dev reads the monorepo-root .env; CI and Vercel inject env vars directly.
+if (existsSync("../../.env")) process.loadEnvFile("../../.env");
 
 /** Baseline security headers for every response. */
 const securityHeaders = [
