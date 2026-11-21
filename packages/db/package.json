@@ -1,0 +1,31 @@
+{
+  "name": "@petwealth/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Postgres schema (Drizzle), migrations, seed data, and the shared DB client.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "generate": "drizzle-kit generate",
+    "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
+    "seed": "tsx --env-file-if-exists=../../.env src/seed.ts",
+    "studio": "drizzle-kit studio",
+    "bootstrap": "tsx --env-file-if-exists=../../.env src/bootstrap.ts"
+  },
+  "dependencies": {
+    "@petwealth/domain": "workspace:*",
+    "drizzle-orm": "^0.45.4",
+    "postgres": "^3.4.7"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^10.6.0",
+    "@types/node": "^24.0.0",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "6.0.3"
+  }
+}

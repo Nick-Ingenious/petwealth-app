@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "@petwealth/ui/styles.css";
+
+/* Scan shared packages for class names. */
+@source "../../../../packages/ui/src";

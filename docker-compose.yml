@@ -1,0 +1,15 @@
+# Local Postgres for development. Production/preview use Neon (Vercel Marketplace).
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: petwealth
+      POSTGRES_PASSWORD: petwealth
+      POSTGRES_DB: petwealth
+    ports:
+      - "54329:5432"
+    volumes:
+      - petwealth-db:/var/lib/postgresql/data
+volumes:
+  petwealth-db:

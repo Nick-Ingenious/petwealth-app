@@ -1,0 +1,15 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalEnv": ["DATABASE_URL", "NODE_ENV", "VERCEL", "VERCEL_ENV"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": ["CLERK_*", "NEXT_PUBLIC_*", "AUTH_*", "STAFF_*"]
+    },
+    "dev": { "cache": false, "persistent": true },
+    "typecheck": { "dependsOn": ["^typecheck"] },
+    "lint": {},
+    "test": { "outputs": [] }
+  }
+}
