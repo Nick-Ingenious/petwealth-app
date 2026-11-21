@@ -15,6 +15,9 @@ const isStatus = (v: unknown): v is KitStatus => typeof v === "string" && (KIT_S
 
 const LABELS: Record<string, string> = {
   "order.created": "Order placed",
+  "order.cancelled": "Order cancelled",
+  "order.needs_attention": "⚠ Needs attention",
+  "kit.created": "Kit ordered",
   "customer.updated": "Customer details updated",
   "pet.updated": "Pet details updated",
 };

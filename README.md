@@ -9,10 +9,11 @@ Rebuild of the PetWealth admin + customer platform: pet health test kits sold on
 | `apps/mobile` | Expo React Native app — **Milestone 4** |
 | `packages/domain` | Pure business rules: kit lifecycle, kit codes, RBAC, validators. No I/O. |
 | `packages/db` | Drizzle schema, migrations, seed, DB client (Postgres / Neon). |
+| `packages/integrations` | Third-party adapters (Shopify today; FedEx/Twilio/lab next): signature checks + payload parsing, no DB access. |
 | `packages/api` | Services — the only code that reads/writes data — and the OpenAPI contract. |
 | `packages/ui` | Design tokens + React primitives shared by web apps. |
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how it fits together and [docs/ROADMAP.md](docs/ROADMAP.md) for what's next.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/SHOPIFY.md](docs/SHOPIFY.md) for how it fits together and [docs/ROADMAP.md](docs/ROADMAP.md) for what's next.
 
 ## Local development
 

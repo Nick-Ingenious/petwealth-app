@@ -1,0 +1,66 @@
+{
+  "id": 5912345678901,
+  "name": "#1201",
+  "email": "Jordan.Rivera@Example.com",
+  "contact_email": "Jordan.Rivera@Example.com",
+  "phone": null,
+  "created_at": "2026-11-21T10:15:00-05:00",
+  "processed_at": "2026-11-21T10:15:02-05:00",
+  "cancelled_at": null,
+  "cancel_reason": null,
+  "financial_status": "paid",
+  "test": false,
+  "currency": "USD",
+  "subtotal_price": "378.00",
+  "total_discounts": "37.80",
+  "total_tax": "24.66",
+  "total_price": "364.86",
+  "total_shipping_price_set": { "shop_money": { "amount": "0.00", "currency_code": "USD" } },
+  "customer": {
+    "id": 7001234567890,
+    "email": "jordan.rivera@example.com",
+    "first_name": "Jordan",
+    "last_name": "Rivera",
+    "phone": "(415) 555-0142",
+    "sms_marketing_consent": { "state": "subscribed", "opt_in_level": "single_opt_in" }
+  },
+  "shipping_address": {
+    "first_name": "Jordan",
+    "last_name": "Rivera",
+    "address1": "500 Example Ave",
+    "address2": "Apt 4",
+    "city": "San Francisco",
+    "province": "California",
+    "province_code": "CA",
+    "zip": "94110",
+    "country_code": "US",
+    "phone": "415-555-0142"
+  },
+  "billing_address": null,
+  "line_items": [
+    {
+      "id": 14001,
+      "variant_id": 44000000001,
+      "product_id": 8800000001,
+      "sku": "PW-CAT-COMPLETE",
+      "title": "Cat Complete Health Kit",
+      "variant_title": null,
+      "quantity": 1,
+      "price": "279.00",
+      "requires_shipping": true
+    },
+    {
+      "id": 14002,
+      "variant_id": 44000000002,
+      "product_id": 8800000002,
+      "sku": "PW-DOG-FECAL",
+      "title": "Dog Fecal Health Kit",
+      "variant_title": null,
+      "quantity": 1,
+      "price": "99.00",
+      "requires_shipping": true
+    }
+  ],
+  "note": "ignored field",
+  "tags": "ignored"
+}

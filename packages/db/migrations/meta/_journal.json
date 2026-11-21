@@ -8,6 +8,13 @@
       "when": 1795268355165,
       "tag": "0000_certain_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795301884061,
+      "tag": "0001_young_scarlet_witch",
+      "breakpoints": true
     }
   ]
 }

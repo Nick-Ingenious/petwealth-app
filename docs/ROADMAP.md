@@ -4,7 +4,7 @@
 Monorepo, schema + seed, kit lifecycle, RBAC, admin: Dashboard, Orders, Tests, Customers, Pets, Receive Kits, User Management, Permissions; REST API + OpenAPI docs.
 
 ## Milestone 2 — Fulfilment loop + customer portal
-- Shopify `orders/create` webhook (HMAC-verified, idempotent) → order + kits
+- ✅ Shopify `orders/paid` + `orders/cancelled` webhooks (HMAC-verified, idempotent) → customer, order + kits — see [SHOPIFY.md](SHOPIFY.md). Next: backfill recent orders via the Admin API once credentials exist.
 - FedEx Ship API: outbound + return labels; tracking webhook/cron advances kits
 - Twilio SMS worker for `notifications` rows (`queued` → `sent` → `delivered`), STOP handling. Start A2P 10DLC registration early — it takes weeks.
 - Lab Upload (CSV/PDF via Vercel Blob) → review → release; Lab Results; Rerun Queue; Kit Tracking

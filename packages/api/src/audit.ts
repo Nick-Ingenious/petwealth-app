@@ -14,3 +14,8 @@ export interface AuditEvent {
 export async function recordEvent(db: DbOrTx, event: AuditEvent): Promise<void> {
   await db.insert(s.events).values({ ...event, payload: event.payload ?? {} });
 }
+
+/** Who made a change, as stored on an audit event. */
+export type AuditActor = Pick<AuditEvent, "actorType" | "actorId" | "actorLabel">;
+
+export const SHOPIFY_ACTOR: AuditActor = { actorType: "integration", actorId: "shopify", actorLabel: "Shopify" };
