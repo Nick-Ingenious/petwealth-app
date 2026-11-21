@@ -1,0 +1,22 @@
+{
+  "name": "@petwealth/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Application services (the only code that writes data) + OpenAPI contract. Used by the admin UI, REST API, and MCP server.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./openapi": "./src/http/openapi.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
+    "@petwealth/db": "workspace:*",
+    "@petwealth/domain": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": { "@types/node": "^24.0.0", "typescript": "6.0.3", "vitest": "^5.1.1" }
+}

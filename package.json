@@ -1,0 +1,29 @@
+{
+  "name": "petwealth",
+  "private": true,
+  "description": "PetWealth platform monorepo — admin portal, customer portal, shared domain/db/api packages.",
+  "packageManager": "pnpm@11.1.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d db",
+    "db:generate": "pnpm --filter @petwealth/db generate",
+    "db:migrate": "pnpm --filter @petwealth/db migrate",
+    "db:seed": "pnpm --filter @petwealth/db seed",
+    "db:studio": "pnpm --filter @petwealth/db studio"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "turbo": "^2.11.13",
+    "typescript": "6.0.3"
+  }
+}
