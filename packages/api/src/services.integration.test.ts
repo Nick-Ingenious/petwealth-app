@@ -6,7 +6,7 @@
  */
 import { afterAll, describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, KIT_STATUSES } from "@petwealth/domain";
-import { eq, getDb, schema as s } from "@petwealth/db";
+import { and, eq, getDb, inArray, isNotNull, schema as s } from "@petwealth/db";
 import type { StaffContext } from "./context";
 import { AppError } from "./errors";
 import { getDashboard, getKit, listKits, listOrders, receiveKit } from "./index";
@@ -43,13 +43,19 @@ describe.skipIf(!run)("services (db)", () => {
   });
 
   it("receives a kit, audits it, and queues the SMS", async () => {
-    const [kit] = await getDb().select().from(s.kits).where(eq(s.kits.status, "in_transit")).limit(1);
-    expect(kit?.code).toBeTruthy();
+    // Any kit the lab can receive (earlier runs may have used up the in-transit ones).
+    const [kit] = await getDb()
+      .select()
+      .from(s.kits)
+      .where(and(inArray(s.kits.status, ["in_transit", "sample_collected", "assigned", "activated", "delivered", "shipped"]), isNotNull(s.kits.code)))
+      .limit(1);
+    expect(kit?.code, "no receivable kit left — run pnpm db:seed").toBeTruthy();
+    const from = kit!.status;
     const res = await receiveKit(labTech, { kitCode: kit!.code!.toLowerCase() });
     expect(res.kit.status).toBe("received_at_lab");
 
     const detail = await getKit(superAdmin, kit!.code!);
-    expect(detail.timeline[0]).toMatchObject({ type: "kit.status_changed", payload: { from: "in_transit", to: "received_at_lab" } });
+    expect(detail.timeline[0]).toMatchObject({ type: "kit.status_changed", payload: { from, to: "received_at_lab" } });
     const notes = await getDb().select().from(s.notifications).where(eq(s.notifications.kitId, kit!.id));
     expect(notes.some((n) => n.template === "kit_received")).toBe(true);
 

@@ -51,6 +51,7 @@ export const rerunStatusEnum = pgEnum("rerun_status", ["active", "escalated", "r
 export const notificationChannelEnum = pgEnum("notification_channel", ["sms", "email", "push"]);
 export const notificationStatusEnum = pgEnum("notification_status", ["queued", "sent", "delivered", "failed", "skipped"]);
 export const actorTypeEnum = pgEnum("actor_type", ["staff", "customer", "system", "integration"]);
+export const webhookStatusEnum = pgEnum("webhook_status", ["received", "processed", "ignored", "failed"]);
 
 const id = () => uuid().primaryKey().default(sql`gen_random_uuid()`);
 const timestamps = {
@@ -189,6 +190,8 @@ export const orders = pgTable(
     totalCents: integer().notNull(),
     shippingAddressId: uuid().references(() => addresses.id),
     placedAt: timestamp({ withTimezone: true }).notNull(),
+    cancelledAt: timestamp({ withTimezone: true }),
+    cancelReason: text(),
     legacyId: text().unique(),
     ...timestamps,
   },
@@ -354,6 +357,35 @@ export const events = pgTable(
     occurredAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("events_entity_idx").on(t.entityType, t.entityId, t.occurredAt)],
+);
+
+/**
+ * Every inbound webhook delivery (Shopify, later FedEx/Twilio). Gives us
+ * idempotency (providers retry and may deliver twice), an audit trail, and a
+ * way to replay failures. Payloads can contain customer PII — keep access
+ * staff-only and prune old rows.
+ */
+export const webhookEvents = pgTable(
+  "webhook_events",
+  {
+    id: id(),
+    source: text().notNull(),
+    /** Provider's delivery id, e.g. X-Shopify-Webhook-Id. */
+    externalId: text().notNull(),
+    topic: text().notNull(),
+    shopDomain: text(),
+    payload: jsonb().$type<Record<string, unknown>>().notNull(),
+    status: webhookStatusEnum().notNull().default("received"),
+    result: jsonb().$type<Record<string, unknown>>(),
+    error: text(),
+    attempts: integer().notNull().default(1),
+    receivedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    processedAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("webhook_events_source_external_idx").on(t.source, t.externalId),
+    index("webhook_events_status_idx").on(t.status, t.receivedAt),
+  ],
 );
 
 // ── Relations (for the relational query API) ──────────────────────────

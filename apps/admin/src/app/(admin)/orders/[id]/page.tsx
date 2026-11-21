@@ -18,6 +18,7 @@ export default async function OrderDetail({ params }: PageProps<"/orders/[id]">)
     throw e;
   });
   const addr = order.shippingAddress;
+  const flags = order.timeline.filter((e) => e.type === "order.needs_attention");
 
   return (
     <>
@@ -28,6 +29,16 @@ export default async function OrderDetail({ params }: PageProps<"/orders/[id]">)
         description={`Shopify ${order.shopifyOrderName ?? "—"} · placed ${formatDateTime(order.placedAt)}`}
         actions={<Badge tone={order.status === "refunded" || order.status === "cancelled" ? "danger" : order.status === "fulfilled" ? "success" : "info"}>{order.status}</Badge>}
       />
+      {flags.map((f) => {
+        const items = (f.payload.items ?? f.payload.alreadyShipped) as string[] | undefined;
+        return (
+          <div key={f.id} role="alert" className="mb-6 rounded-card border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="font-semibold">Needs attention</p>
+            <p>{String(f.payload.action ?? f.payload.reason ?? "Review this order.")}</p>
+            {items?.length ? <p className="mt-1 font-mono text-xs">{items.join(", ")}</p> : null}
+          </div>
+        );
+      })}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card className="overflow-hidden">

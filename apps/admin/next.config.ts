@@ -15,7 +15,7 @@ const securityHeaders = [
 ];
 
 const config: NextConfig = {
-  transpilePackages: ["@petwealth/api", "@petwealth/db", "@petwealth/domain", "@petwealth/ui"],
+  transpilePackages: ["@petwealth/api", "@petwealth/db", "@petwealth/domain", "@petwealth/integrations", "@petwealth/ui"],
   poweredByHeader: false,
   typedRoutes: true,
   async headers() {

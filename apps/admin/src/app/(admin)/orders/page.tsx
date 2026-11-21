@@ -69,7 +69,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
                   <TD className="whitespace-nowrap text-ink-muted">{formatDate(o.placedAt)}</TD>
                   <TD className="text-right tabular-nums">
                     {formatCents(o.totalCents)}
-                    {o.status === "refunded" ? <p className="text-xs text-red-600">Refunded</p> : null}
+                    {o.status === "refunded" || o.status === "cancelled" ? <p className="text-xs capitalize text-red-600">{o.status}</p> : null}
                   </TD>
                   <TD className="w-8 text-ink-subtle"><ChevronRight className="size-4" /></TD>
                 </TR>

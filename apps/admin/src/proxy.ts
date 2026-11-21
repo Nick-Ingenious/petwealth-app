@@ -1,5 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 
 /**
  * Optimistic auth check at the edge of every request: anything that isn't a
@@ -11,11 +11,17 @@ const isPublic = createRouteMatcher(["/sign-in(.*)", "/access-denied", "/api/hea
 const devBypass =
   process.env.NODE_ENV === "development" && !process.env.VERCEL && Boolean(process.env.AUTH_DEV_BYPASS_EMAIL);
 
-export default devBypass
-  ? () => NextResponse.next()
-  : clerkMiddleware(async (auth, req) => {
-      if (!isPublic(req)) await auth.protect();
-    });
+const clerk = clerkMiddleware(async (auth, req) => {
+  if (!isPublic(req)) await auth.protect();
+});
+
+export default function proxy(req: NextRequest, event: NextFetchEvent) {
+  // Webhooks authenticate with provider signatures (verified in each route), not
+  // staff sessions — so they never touch Clerk and keep working even if Clerk is
+  // misconfigured or unavailable.
+  if (devBypass || req.nextUrl.pathname.startsWith("/api/webhooks/")) return NextResponse.next();
+  return clerk(req, event);
+}
 
 export const config = {
   matcher: [

@@ -16,7 +16,7 @@ import {
 } from "@petwealth/domain";
 import { and, asc, count, desc, eq, getDb, ilike, or, schema as s, sql, type DbOrTx } from "@petwealth/db";
 import type { z } from "zod";
-import { recordEvent } from "../audit";
+import { recordEvent, type AuditActor } from "../audit";
 import { actorFields, requirePermission, type StaffContext } from "../context";
 import { AppError, conflict, notFound } from "../errors";
 import { likePattern, offsetOf, toPage } from "../pagination";
@@ -104,7 +104,7 @@ export async function changeKitStatus(
   tx: DbOrTx,
   kit: KitRow,
   to: KitStatus,
-  actor: ReturnType<typeof actorFields>,
+  actor: AuditActor,
   payload: Record<string, unknown> = {},
 ): Promise<KitRow> {
   try {
