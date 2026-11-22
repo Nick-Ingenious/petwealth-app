@@ -1,6 +1,8 @@
+import { z } from "zod";
 import { kitListQuerySchema } from "@petwealth/domain";
 import { and, asc, count, desc, eq, getDb, ilike, inArray, or, schema as s, sql } from "@petwealth/db";
-import { requirePermission, type StaffContext } from "../context";
+import { recordEvent } from "../audit";
+import { actorFields, requirePermission, type StaffContext } from "../context";
 import { notFound } from "../errors";
 import { likePattern, offsetOf, toPage } from "../pagination";
 
@@ -121,4 +123,25 @@ export async function getOrder(ctx: StaffContext, id: string) {
     )
     .orderBy(desc(s.events.occurredAt));
   return { ...order, timeline };
+}
+
+const orderNoteSchema = z.object({
+  orderId: z.uuid(),
+  note: z.string().trim().min(1, "Write a note first.").max(1000, "Notes are limited to 1,000 characters."),
+});
+
+/** Staff note on an order, stored as an `order.note` event in the audit log. */
+export async function addOrderNote(ctx: StaffContext, input: z.input<typeof orderNoteSchema>) {
+  requirePermission(ctx, "orders.manage");
+  const { orderId, note } = orderNoteSchema.parse(input);
+  const db = getDb();
+  const order = await db.query.orders.findFirst({ where: eq(s.orders.id, orderId), columns: { id: true } });
+  if (!order) throw notFound("Order");
+  await recordEvent(db, {
+    entityType: "order",
+    entityId: order.id,
+    type: "order.note",
+    ...actorFields(ctx),
+    payload: { note, via: ctx.via },
+  });
 }
