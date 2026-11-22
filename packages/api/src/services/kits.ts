@@ -14,7 +14,7 @@ import {
   receiveKitSchema,
   type KitStatus,
 } from "@petwealth/domain";
-import { and, asc, count, desc, eq, getDb, ilike, or, schema as s, sql, type DbOrTx } from "@petwealth/db";
+import { and, count, desc, eq, getDb, ilike, inArray, or, schema as s, sql, type DbOrTx } from "@petwealth/db";
 import type { z } from "zod";
 import { recordEvent, type AuditActor } from "../audit";
 import { actorFields, requirePermission, type StaffContext } from "../context";
@@ -84,17 +84,27 @@ export async function getKit(ctx: StaffContext, code: string) {
       customer: true,
       pet: true,
       order: true,
-      shipments: { orderBy: asc(s.shipments.direction) },
+      shipmentLinks: { with: { shipment: true } },
       labResults: { orderBy: desc(s.labResults.reportedAt) },
     },
   });
   if (!kit) throw notFound("Kit");
+  const { shipmentLinks, ...rest } = kit;
+  const shipments = shipmentLinks
+    .map((l) => l.shipment)
+    .sort((a, b) => a.direction.localeCompare(b.direction) || b.createdAt.getTime() - a.createdAt.getTime());
+  // The kit's own events plus those of the mailers it travelled in.
   const timeline = await db
     .select()
     .from(s.events)
-    .where(and(eq(s.events.entityType, "kit"), eq(s.events.entityId, kit.id)))
+    .where(
+      or(
+        and(eq(s.events.entityType, "kit"), eq(s.events.entityId, kit.id)),
+        shipments.length ? and(eq(s.events.entityType, "shipment"), inArray(s.events.entityId, shipments.map((x) => x.id))) : undefined,
+      ),
+    )
     .orderBy(desc(s.events.occurredAt));
-  return { ...kit, timeline };
+  return { ...rest, shipments, timeline };
 }
 
 type KitRow = typeof s.kits.$inferSelect;

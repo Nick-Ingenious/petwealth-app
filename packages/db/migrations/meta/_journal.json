@@ -15,6 +15,27 @@
       "when": 1795301884061,
       "tag": "0001_young_scarlet_witch",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795351395654,
+      "tag": "0002_jazzy_lila_cheney",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795351437396,
+      "tag": "0003_sweet_dakota_north",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795351899068,
+      "tag": "0004_striped_xavin",
+      "breakpoints": true
     }
   ]
 }

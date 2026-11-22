@@ -16,10 +16,12 @@ const clerk = clerkMiddleware(async (auth, req) => {
 });
 
 export default function proxy(req: NextRequest, event: NextFetchEvent) {
-  // Webhooks authenticate with provider signatures (verified in each route), not
-  // staff sessions — so they never touch Clerk and keep working even if Clerk is
-  // misconfigured or unavailable.
-  if (devBypass || req.nextUrl.pathname.startsWith("/api/webhooks/")) return NextResponse.next();
+  // Webhooks (provider signatures) and crons (CRON_SECRET) authenticate in their
+  // own routes, not with staff sessions — so they never touch Clerk and keep
+  // working even if Clerk is misconfigured or unavailable.
+  if (devBypass || req.nextUrl.pathname.startsWith("/api/webhooks/") || req.nextUrl.pathname.startsWith("/api/cron/")) {
+    return NextResponse.next();
+  }
   return clerk(req, event);
 }
 

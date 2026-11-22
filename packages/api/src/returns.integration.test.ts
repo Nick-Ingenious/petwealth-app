@@ -1,0 +1,156 @@
+/**
+ * Kit registration + return shipping against a real database.
+ *   RUN_DB_TESTS=1 pnpm --filter @petwealth/api test
+ * Creates its own customers/pets with random kit codes, so it can re-run without reseeding.
+ */
+import { randomInt } from "node:crypto";
+import { afterAll, describe, expect, it } from "vitest";
+import { ALL_PERMISSIONS, formatKitCode } from "@petwealth/domain";
+import { and, eq, getDb, inArray, schema as s } from "@petwealth/db";
+import { CarrierError, TestCarrier, type Carrier } from "@petwealth/integrations/carrier";
+import type { StaffContext } from "./context";
+import { refreshTracking, registerKitsAsStaff, retryReturnLabel } from "./services/returns";
+
+const run = process.env.RUN_DB_TESTS === "1";
+const staff: StaffContext = {
+  kind: "staff",
+  staffId: "00000000-0000-0000-0000-000000000000",
+  email: "test@petwealth.com",
+  name: "Test",
+  role: "super_admin",
+  permissions: new Set(ALL_PERMISSIONS),
+  via: "admin_ui",
+};
+
+const code = (species: "dog" | "cat", panel: "fecal" | "respiratory" | "oral") => formatKitCode(species, panel, 900 + randomInt(99), randomInt(1000));
+
+async function makeCustomer({ withAddress = true } = {}) {
+  const db = getDb();
+  const n = randomInt(1e9);
+  const [c] = await db.insert(s.customers).values({ email: `returns.${n}@example.com`, firstName: "Ret", lastName: `Test${n}`, phone: "+14155550199" }).returning();
+  if (withAddress) {
+    await db.insert(s.addresses).values({ customerId: c!.id, line1: "1 Test St", city: "Austin", region: "TX", postalCode: "78701", isDefault: true });
+  }
+  const [cat, dog] = await db
+    .insert(s.pets)
+    .values([
+      { customerId: c!.id, name: "Felix", species: "cat" },
+      { customerId: c!.id, name: "Rex", species: "dog" },
+    ])
+    .returning();
+  // One ordered (uncoded) cat fecal kit, as Shopify intake would create.
+  const [orderedKit] = await db.insert(s.kits).values({ customerId: c!.id, species: "cat", panel: "fecal", status: "ordered" }).returning();
+  return { customer: c!, cat: cat!, dog: dog!, orderedKit: orderedKit! };
+}
+
+const failing: Carrier = {
+  name: "fedex",
+  createReturnShipment: async () => {
+    throw new CarrierError("FedEx /ship/v1/shipments failed — SHIPPER.POSTALSTATE.MISMATCH", false);
+  },
+  track: async () => [],
+};
+
+describe.skipIf(!run)("kit registration & returns (db)", () => {
+  afterAll(async () => {
+    await getDb().$client.end();
+  });
+
+  it("registers kits together into one mailer with an RMA and QR code", async () => {
+    const { customer, cat, dog, orderedKit } = await makeCustomer();
+    const catCode = code("cat", "fecal");
+    const dogCode = code("dog", "respiratory");
+    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: catCode.toLowerCase(), petId: cat.id }, { kitCode: dogCode, petId: dog.id }] }, { carrier: new TestCarrier() });
+
+    expect(res.label).toEqual({ status: "label_created" });
+    expect(res.rmaNumber).toMatch(/^PWR\d{7}$/);
+    expect(res.kits).toEqual([{ code: catCode, petName: "Felix" }, { code: dogCode, petName: "Rex" }]);
+
+    const db = getDb();
+    const matched = await db.query.kits.findFirst({ where: eq(s.kits.id, orderedKit.id) });
+    expect(matched).toMatchObject({ code: catCode, petId: cat.id, status: "assigned" }); // linked to the Shopify-ordered kit
+    const standalone = await db.query.kits.findFirst({ where: eq(s.kits.code, dogCode) });
+    expect(standalone).toMatchObject({ customerId: customer.id, petId: dog.id, status: "assigned", orderId: null });
+
+    const shipment = await db.query.shipments.findFirst({ where: eq(s.shipments.id, res.shipmentId), with: { kits: true, label: true } });
+    expect(shipment).toMatchObject({ direction: "return", status: "label_created", carrier: "test", labelFormat: "qr_png", rmaNumber: res.rmaNumber });
+    expect(shipment!.kits).toHaveLength(2);
+    expect(shipment!.label?.mimeType).toBe("image/png");
+
+    const email = await db.select().from(s.notifications).where(and(eq(s.notifications.customerId, customer.id), eq(s.notifications.template, "return_label_ready")));
+    expect(email).toHaveLength(1);
+  });
+
+  it("rejects the wrong species, duplicate registration and other customers' kits", async () => {
+    const a = await makeCustomer();
+    const b = await makeCustomer();
+    await expect(registerKitsAsStaff(staff, a.customer.id, { kits: [{ kitCode: code("cat", "oral"), petId: a.dog.id }] })).rejects.toMatchObject({
+      status: 422,
+      message: expect.stringContaining("is a cat kit, but Rex is a dog"),
+    });
+
+    const taken = code("dog", "fecal");
+    await registerKitsAsStaff(staff, a.customer.id, { kits: [{ kitCode: taken, petId: a.dog.id }] }, { carrier: new TestCarrier() });
+    await expect(registerKitsAsStaff(staff, a.customer.id, { kits: [{ kitCode: taken, petId: a.dog.id }] })).rejects.toMatchObject({ status: 409 });
+    await expect(registerKitsAsStaff(staff, b.customer.id, { kits: [{ kitCode: taken, petId: b.dog.id }] })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("another account"),
+    });
+    await expect(registerKitsAsStaff(staff, a.customer.id, { kits: [{ kitCode: code("dog", "oral"), petId: b.dog.id }] })).rejects.toMatchObject({ status: 422 });
+  });
+
+  it("requires a shipping address", async () => {
+    const { customer, cat } = await makeCustomer({ withAddress: false });
+    await expect(registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: code("cat", "fecal"), petId: cat.id }] })).rejects.toMatchObject({
+      status: 422,
+      message: expect.stringContaining("shipping address"),
+    });
+  });
+
+  it("keeps the registration when FedEx fails, and retries cleanly", async () => {
+    const { customer, cat } = await makeCustomer();
+    const kitCode = code("cat", "respiratory");
+    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode, petId: cat.id }] }, { carrier: failing });
+    expect(res.label).toMatchObject({ status: "failed", error: expect.stringContaining("POSTALSTATE") });
+    const kit = await getDb().query.kits.findFirst({ where: eq(s.kits.code, kitCode) });
+    expect(kit?.status).toBe("assigned");
+    expect((await getDb().query.shipments.findFirst({ where: eq(s.shipments.id, res.shipmentId) }))?.status).toBe("failed");
+
+    expect(await retryReturnLabel(staff, res.shipmentId, { carrier: new TestCarrier() })).toEqual({ status: "label_created" });
+    await expect(retryReturnLabel(staff, res.shipmentId, { carrier: new TestCarrier() })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("moves kits to In Transit when the mailer is picked up, and handles delivery", async () => {
+    const { customer, cat, dog } = await makeCustomer();
+    let now = Date.now();
+    const carrier = new TestCarrier(() => now);
+    const res = await registerKitsAsStaff(
+      staff,
+      customer.id,
+      { kits: [{ kitCode: code("cat", "oral"), petId: cat.id }, { kitCode: code("dog", "oral"), petId: dog.id }] },
+      { carrier },
+    );
+    const db = getDb();
+    const kitIds = (await db.select().from(s.shipmentKits).where(eq(s.shipmentKits.shipmentId, res.shipmentId))).map((r) => r.kitId);
+
+    now += 11 * 60_000; // picked up
+    const r1 = await refreshTracking({ carrier, now: new Date(now) });
+    expect(r1.errors).toEqual([]);
+    const sh1 = await db.query.shipments.findFirst({ where: eq(s.shipments.id, res.shipmentId) });
+    expect(sh1).toMatchObject({ status: "in_transit" });
+    expect(sh1!.pickedUpAt).not.toBeNull();
+    const kits1 = await db.select().from(s.kits).where(inArray(s.kits.id, kitIds));
+    expect(kits1.map((k) => k.status)).toEqual(["in_transit", "in_transit"]);
+
+    now += 1 * 60_000; // too soon to poll again
+    await refreshTracking({ carrier, now: new Date(now) });
+    expect((await db.query.shipments.findFirst({ where: eq(s.shipments.id, res.shipmentId) }))?.status).toBe("in_transit");
+
+    now += 30 * 60_000; // delivered to the lab
+    await refreshTracking({ carrier, now: new Date(now) });
+    const sh2 = await db.query.shipments.findFirst({ where: eq(s.shipments.id, res.shipmentId) });
+    expect(sh2).toMatchObject({ status: "delivered" });
+    const kits2 = await db.select().from(s.kits).where(inArray(s.kits.id, kitIds));
+    expect(kits2.every((k) => k.status === "in_transit")).toBe(true); // lab scan does "received"
+  });
+});

@@ -104,10 +104,11 @@ export async function getOrder(ctx: StaffContext, id: string) {
       customer: true,
       shippingAddress: true,
       items: { with: { product: true } },
-      kits: { with: { pet: true, shipments: true }, orderBy: asc(s.kits.panel) },
+      kits: { with: { pet: true, shipmentLinks: { with: { shipment: true } } }, orderBy: asc(s.kits.panel) },
     },
   });
   if (!order) throw notFound("Order");
+  const kits = order.kits.map(({ shipmentLinks, ...k }) => ({ ...k, shipments: shipmentLinks.map((l) => l.shipment) }));
   const timeline = await db
     .select()
     .from(s.events)
@@ -115,10 +116,10 @@ export async function getOrder(ctx: StaffContext, id: string) {
       or(
         and(eq(s.events.entityType, "order"), eq(s.events.entityId, order.id)),
         order.kits.length
-          ? and(eq(s.events.entityType, "kit"), inArray(s.events.entityId, order.kits.map((k) => k.id)))
+          ? and(eq(s.events.entityType, "kit"), inArray(s.events.entityId, kits.map((k) => k.id)))
           : undefined,
       ),
     )
     .orderBy(desc(s.events.occurredAt));
-  return { ...order, timeline };
+  return { ...order, kits, timeline };
 }
