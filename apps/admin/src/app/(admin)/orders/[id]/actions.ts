@@ -19,7 +19,6 @@ export async function saveShippingAction(_prev: ActionResult | null, form: FormD
   const result = await runAction((staff) =>
     saveOutboundShipment(staff, {
       orderId,
-      carrier: String(form.get("carrier") ?? "fedex") as never,
       trackingNumber: String(form.get("trackingNumber") ?? ""),
       note: String(form.get("note") ?? "") || undefined,
     }),

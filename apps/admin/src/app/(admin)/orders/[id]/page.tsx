@@ -51,7 +51,7 @@ const PRODUCT_BLURB: Record<TestType, (pet: string) => string> = {
 };
 const productBlurb = (p: { species: Species; testType: TestType }) => PRODUCT_BLURB[p.testType](SPECIES_LABEL[p.species].noun.toLowerCase());
 
-const CARRIER_LABEL: Record<string, string> = { fedex: "FedEx", ups: "UPS", usps: "USPS" };
+const CARRIER_LABEL: Record<string, string> = { fedex: "FedEx" };
 const SHIPMENT_LABEL: Record<string, string> = {
   pending: "Pending",
   failed: "Label failed",
@@ -190,7 +190,7 @@ export default async function OrderDetail({ params }: PageProps<"/orders/[id]">)
           {canShip && shipments.length && outboundEditable ? (
             <ShippingDialog
               orderId={order.id}
-              outbound={outbound ? { carrier: outbound.carrier, trackingNumber: outbound.trackingNumber } : null}
+              outbound={outbound ? { trackingNumber: outbound.trackingNumber } : null}
               returns={returnMailers}
               trigger={outbound ? "Edit shipping" : "Add outbound tracking"}
               triggerVariant="secondary"

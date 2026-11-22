@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { Info, RotateCcw, Truck } from "lucide-react";
-import { Button, Field, Input, Select, buttonClasses, type ButtonVariant } from "@petwealth/ui";
+import { Button, Field, Input, buttonClasses, type ButtonVariant } from "@petwealth/ui";
 import type { ActionResult } from "@/lib/action";
 import { saveShippingAction } from "./actions";
 
@@ -13,12 +13,6 @@ export interface ReturnMailer {
   status: string;
 }
 
-const CARRIERS = [
-  { value: "fedex", label: "FedEx" },
-  { value: "ups", label: "UPS" },
-  { value: "usps", label: "USPS" },
-];
-
 export function ShippingDialog({
   orderId,
   outbound,
@@ -27,7 +21,7 @@ export function ShippingDialog({
   triggerVariant = "brand",
 }: {
   orderId: string;
-  outbound: { carrier: string; trackingNumber: string | null } | null;
+  outbound: { trackingNumber: string | null } | null;
   returns: ReturnMailer[];
   trigger: string;
   triggerVariant?: ButtonVariant;
@@ -69,14 +63,7 @@ export function ShippingDialog({
               <h3 className="flex items-center gap-2 font-semibold">
                 <Truck className="size-5 text-brand-600" aria-hidden /> Outbound Shipment (Kit → Customer)
               </h3>
-              <Field label="Carrier" htmlFor="ship-carrier" hint="Only FedEx shipments update kit status automatically.">
-                <Select id="ship-carrier" name="carrier" defaultValue={outbound?.carrier ?? "fedex"}>
-                  {CARRIERS.map((c) => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Tracking number" htmlFor="ship-tracking" error={err?.fieldErrors?.trackingNumber?.[0]}>
+              <Field label="FedEx tracking number" htmlFor="ship-tracking" hint="Kit status updates automatically as FedEx scans the package." error={err?.fieldErrors?.trackingNumber?.[0]}>
                 <Input
                   id="ship-tracking"
                   name="trackingNumber"
@@ -98,7 +85,7 @@ export function ShippingDialog({
                 <ul className="space-y-2">
                   {returns.map((r) => (
                     <li key={r.id} className="flex items-center justify-between rounded-lg border border-line px-4 py-3 text-sm">
-                      <span className="font-mono">{r.rmaNumber ?? "Return mailer"}{r.trackingNumber ? ` · FedEx ${r.trackingNumber}` : ""}</span>
+                      <span className="font-mono">{r.rmaNumber ?? "Return mailer"}{r.trackingNumber ? ` · ${r.trackingNumber}` : ""}</span>
                       <span className="text-ink-muted capitalize">{r.status.replace("_", " ")}</span>
                     </li>
                   ))}

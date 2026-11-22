@@ -148,11 +148,8 @@ export async function addOrderNote(ctx: StaffContext, input: z.input<typeof orde
   });
 }
 
-export const SHIPPING_CARRIERS = ["fedex", "ups", "usps"] as const;
-
 const outboundShipmentSchema = z.object({
   orderId: z.uuid(),
-  carrier: z.enum(SHIPPING_CARRIERS),
   trackingNumber: z
     .string()
     .trim()
@@ -165,11 +162,12 @@ const outboundShipmentSchema = z.object({
  * Record the outbound (kit → customer) tracking number for an order. One
  * shipment covers every non-cancelled kit on the order. Kits still "ordered"
  * move to "label_created"; the tracking cron then moves them to shipped and
- * delivered as the carrier reports (FedEx only, for now).
+ * delivered as FedEx reports. PetWealth ships with FedEx only.
  */
 export async function saveOutboundShipment(ctx: StaffContext, input: z.input<typeof outboundShipmentSchema>) {
   requirePermission(ctx, "tracking.manage");
-  const { orderId, carrier, trackingNumber, note } = outboundShipmentSchema.parse(input);
+  const { orderId, trackingNumber, note } = outboundShipmentSchema.parse(input);
+  const carrier = "fedex";
   const actor = actorFields(ctx);
 
   return getDb().transaction(async (tx) => {
