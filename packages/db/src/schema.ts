@@ -20,6 +20,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  real,
   text,
   timestamp,
   uniqueIndex,
@@ -35,6 +36,8 @@ export const kitStatusEnum = pgEnum("kit_status", KIT_STATUSES);
 export const roleKeyEnum = pgEnum("role_key", ROLE_KEYS);
 export const staffStatusEnum = pgEnum("staff_status", ["invited", "active", "disabled"]);
 export const customerStatusEnum = pgEnum("customer_status", ["active", "disabled"]);
+export const customerTypeEnum = pgEnum("customer_type", ["pet_parent", "pet_professional"]);
+export const petSexEnum = pgEnum("pet_sex", ["male", "female", "unknown"]);
 export const orderStatusEnum = pgEnum("order_status", ["open", "fulfilled", "cancelled", "refunded"]);
 export const orderSourceEnum = pgEnum("order_source", ["shopify", "wholesale", "manual", "legacy"]);
 export const shipmentDirectionEnum = pgEnum("shipment_direction", ["outbound", "return"]);
@@ -116,6 +119,9 @@ export const customers = pgTable(
     phone: text(),
     smsOptIn: boolean().notNull().default(false),
     status: customerStatusEnum().notNull().default("active"),
+    /** Chosen at portal onboarding; null for customers who haven't signed in yet (e.g. Shopify-only). */
+    customerType: customerTypeEnum(),
+    onboardedAt: timestamp({ withTimezone: true }),
     legacyId: text().unique(),
     ...timestamps,
   },
@@ -152,6 +158,9 @@ export const pets = pgTable(
     species: speciesEnum().notNull(),
     breed: text(),
     dateOfBirth: date(),
+    sex: petSexEnum(),
+    spayedNeutered: boolean(),
+    weightLbs: real(),
     photoUrl: text(),
     legacyId: text().unique(),
     ...timestamps,

@@ -1,0 +1,25 @@
+import { existsSync } from "node:fs";
+import type { NextConfig } from "next";
+
+// Local dev reads the monorepo-root .env; CI and Vercel inject env vars directly.
+if (existsSync("../../.env")) process.loadEnvFile("../../.env");
+
+const securityHeaders = [
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // Camera is used to scan the kit's QR code on the registration screen.
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=()" },
+];
+
+const config: NextConfig = {
+  transpilePackages: ["@petwealth/api", "@petwealth/db", "@petwealth/domain", "@petwealth/integrations", "@petwealth/ui"],
+  poweredByHeader: false,
+  typedRoutes: true,
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
+};
+
+export default config;

@@ -36,6 +36,13 @@
       "when": 1795351899068,
       "tag": "0004_striped_xavin",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795357310210,
+      "tag": "0005_high_cassandra_nova",
+      "breakpoints": true
     }
   ]
 }

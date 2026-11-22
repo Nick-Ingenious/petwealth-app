@@ -5,7 +5,7 @@ Rebuild of the PetWealth admin + customer platform: pet health test kits sold on
 | App / package | What it is |
 |---|---|
 | `apps/admin` | Staff portal (admin.petwealth.com). Next.js 16, Clerk (Google sign-in), REST API `/api/v1`, API docs `/api/docs`. |
-| `apps/portal` | Customer portal, mobile-first — **Milestone 2** |
+| `apps/portal` | Customer portal (app.petwealth.com), mobile-first: onboarding, add pet, kit registration, FedEx code, kit journey — see [docs/PORTAL.md](docs/PORTAL.md). |
 | `apps/mobile` | Expo React Native app — **Milestone 4** |
 | `packages/domain` | Pure business rules: kit lifecycle, kit codes, RBAC, validators. No I/O. |
 | `packages/db` | Drizzle schema, migrations, seed, DB client (Postgres / Neon). |
@@ -24,7 +24,7 @@ pnpm install
 cp .env.example .env          # then set AUTH_DEV_BYPASS_EMAIL=admin@petwealth.com to skip Clerk locally
 pnpm db:up                    # Postgres on localhost:54329
 pnpm db:migrate && pnpm db:seed
-pnpm dev                      # admin on http://localhost:3001
+pnpm dev                      # admin on http://localhost:3001, portal on http://localhost:3002
 ```
 
 `AUTH_DEV_BYPASS_EMAIL` signs you in as a seeded staff user without Clerk. It is ignored unless `NODE_ENV=development` **and** the app is not running on Vercel. Try other roles with `ops@`, `support@`, `lab@petwealth.com`.

@@ -85,6 +85,64 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  apps/portal:
+    dependencies:
+      '@clerk/nextjs':
+        specifier: ^7.10.7
+        version: 7.10.7(next@16.4.6(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@petwealth/api':
+        specifier: workspace:*
+        version: link:../../packages/api
+      '@petwealth/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@petwealth/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@petwealth/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
+      '@petwealth/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      lucide-react:
+        specifier: ^1.77.0
+        version: 1.77.0(@types/react@19.3.0)(react@19.3.1)
+      next:
+        specifier: ^16.4.6
+        version: 16.4.6(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      react:
+        specifier: ^19.3.1
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.3.1
+        version: 19.3.1(react@19.3.1)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4.3.5
+        version: 4.3.5
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
+      '@types/react':
+        specifier: ^19.1.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.1.0
+        version: 19.3.0(@types/react@19.3.0)
+      tailwindcss:
+        specifier: ^4.3.5
+        version: 4.3.5
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   packages/api:
     dependencies:
       '@asteasolutions/zod-to-openapi':
