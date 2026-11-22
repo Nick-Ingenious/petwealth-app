@@ -18,6 +18,13 @@ const LABELS: Record<string, string> = {
   "order.cancelled": "Order cancelled",
   "order.needs_attention": "⚠ Needs attention",
   "kit.created": "Kit ordered",
+  "kit.shipping_exception": "⚠ FedEx shipping exception",
+  "shipment.created": "Return mailer opened",
+  "shipment.label_created": "FedEx return code created",
+  "shipment.label_failed": "⚠ FedEx return code failed",
+  "shipment.in_transit": "Picked up by FedEx",
+  "shipment.delivered": "Delivered to lab",
+  "shipment.exception": "⚠ FedEx exception",
   "customer.updated": "Customer details updated",
   "pet.updated": "Pet details updated",
 };

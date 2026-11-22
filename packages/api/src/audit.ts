@@ -1,7 +1,7 @@
 import { schema as s, type DbOrTx } from "@petwealth/db";
 
 export interface AuditEvent {
-  entityType: "kit" | "order" | "customer" | "pet" | "staff" | "role";
+  entityType: "kit" | "order" | "customer" | "pet" | "staff" | "role" | "shipment";
   entityId: string;
   type: string;
   actorType: "staff" | "customer" | "system" | "integration";

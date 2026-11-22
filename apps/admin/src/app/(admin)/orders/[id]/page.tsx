@@ -45,7 +45,7 @@ export default async function OrderDetail({ params }: PageProps<"/orders/[id]">)
             <CardHeader title="Kits" description="One kit per lab panel. Complete kits ship three." />
             <div className="mt-4">
               <Table>
-                <THead><tr><TH>Kit ID</TH><TH>Test</TH><TH>Pet</TH><TH>Status</TH><TH>Tracking (out / return)</TH></tr></THead>
+                <THead><tr><TH>Kit ID</TH><TH>Test</TH><TH>Pet</TH><TH>Status</TH><TH>Outbound / return mailer</TH></tr></THead>
                 <TBody>
                   {order.kits.map((k) => {
                     const out = k.shipments.find((s) => s.direction === "outbound");
@@ -56,7 +56,9 @@ export default async function OrderDetail({ params }: PageProps<"/orders/[id]">)
                         <TD>{kitName(k)}</TD>
                         <TD>{k.pet ? <Link href={`/pets/${k.pet.id}`} className="hover:underline">{k.pet.name}</Link> : <span className="text-ink-subtle">Not registered</span>}</TD>
                         <TD><KitStatusBadge status={k.status} /></TD>
-                        <TD className="font-mono text-xs text-ink-muted">{out?.trackingNumber ?? "—"} / {ret?.trackingNumber ?? "—"}</TD>
+                        <TD className="font-mono text-xs text-ink-muted">
+                          {out?.trackingNumber ?? "—"} / {ret ? (ret.rmaNumber ?? ret.trackingNumber ?? "pending") : "—"}
+                        </TD>
                       </TR>
                     );
                   })}

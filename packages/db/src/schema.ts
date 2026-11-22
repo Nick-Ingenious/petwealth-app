@@ -39,6 +39,8 @@ export const orderStatusEnum = pgEnum("order_status", ["open", "fulfilled", "can
 export const orderSourceEnum = pgEnum("order_source", ["shopify", "wholesale", "manual", "legacy"]);
 export const shipmentDirectionEnum = pgEnum("shipment_direction", ["outbound", "return"]);
 export const shipmentStatusEnum = pgEnum("shipment_status", [
+  "pending",
+  "failed",
   "label_created",
   "in_transit",
   "delivered",
@@ -244,26 +246,73 @@ export const kits = pgTable(
   ],
 );
 
+/**
+ * A physical FedEx shipment. Return shipments group every kit a customer
+ * registered together (one mailer, up to 10 tubes, one QR code / label) and
+ * carry the customer-facing RMA number, e.g. PWR0100000.
+ *
+ * Lifecycle: pending (label being created) → label_created → in_transit →
+ * delivered, or failed (carrier error — retry from admin) / exception / voided.
+ */
 export const shipments = pgTable(
   "shipments",
   {
     id: id(),
-    kitId: uuid()
-      .notNull()
-      .references(() => kits.id, { onDelete: "cascade" }),
+    number: integer().generatedAlwaysAsIdentity({ startWith: 100000 }).unique(),
     direction: shipmentDirectionEnum().notNull(),
     carrier: text().notNull().default("fedex"),
-    trackingNumber: text().notNull(),
+    rmaNumber: text().unique(),
+    customerId: uuid().references(() => customers.id, { onDelete: "set null" }),
+    orderId: uuid().references(() => orders.id, { onDelete: "set null" }),
+    /** Null until the carrier has created the shipment. */
+    trackingNumber: text(),
+    /** "qr_png" (show at the FedEx counter) or "pdf" (printable label). */
+    labelFormat: text(),
     labelUrl: text(),
-    status: shipmentStatusEnum().notNull().default("label_created"),
+    /** No DB default: set explicitly ("pending" when the row is created before calling the carrier). */
+    status: shipmentStatusEnum().notNull(),
+    statusDetail: text(),
+    error: text(),
+    pickedUpAt: timestamp({ withTimezone: true }),
+    deliveredAt: timestamp({ withTimezone: true }),
+    lastTrackedAt: timestamp({ withTimezone: true }),
     lastCarrierEventAt: timestamp({ withTimezone: true }),
+    legacyId: text().unique(),
     ...timestamps,
   },
   (t) => [
     uniqueIndex("shipments_tracking_idx").on(t.carrier, t.trackingNumber),
-    index("shipments_kit_idx").on(t.kitId),
+    index("shipments_tracking_poll_idx").on(t.status, t.lastTrackedAt),
+    index("shipments_customer_idx").on(t.customerId),
   ],
 );
+
+/** Which kits travel in which shipment (a kit can have an outbound and a return, or a replacement). */
+export const shipmentKits = pgTable(
+  "shipment_kits",
+  {
+    shipmentId: uuid()
+      .notNull()
+      .references(() => shipments.id, { onDelete: "cascade" }),
+    kitId: uuid()
+      .notNull()
+      .references(() => kits.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.shipmentId, t.kitId] }), index("shipment_kits_kit_idx").on(t.kitId)],
+);
+
+/**
+ * The label/QR image the carrier returned, stored so customers can re-open it
+ * and staff can re-send it. Base64; served only through authenticated routes.
+ */
+export const shipmentLabels = pgTable("shipment_labels", {
+  shipmentId: uuid()
+    .primaryKey()
+    .references(() => shipments.id, { onDelete: "cascade" }),
+  mimeType: text().notNull(),
+  contentBase64: text().notNull(),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});
 
 // ── Lab ────────────────────────────────────────────────────────────────
 export const labBatches = pgTable("lab_batches", {
@@ -354,7 +403,9 @@ export const events = pgTable(
     actorId: text(),
     actorLabel: text(),
     payload: jsonb().$type<Record<string, unknown>>().notNull().default({}),
-    occurredAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    // clock_timestamp(), not now(): now() is fixed for the whole transaction, which
+    // would give several steps of one action identical timestamps and scramble the timeline.
+    occurredAt: timestamp({ withTimezone: true }).notNull().default(sql`clock_timestamp()`),
   },
   (t) => [index("events_entity_idx").on(t.entityType, t.entityId, t.occurredAt)],
 );
@@ -413,11 +464,21 @@ export const kitsRelations = relations(kits, ({ one, many }) => ({
   order: one(orders, { fields: [kits.orderId], references: [orders.id] }),
   customer: one(customers, { fields: [kits.customerId], references: [customers.id] }),
   pet: one(pets, { fields: [kits.petId], references: [pets.id] }),
-  shipments: many(shipments),
+  shipmentLinks: many(shipmentKits),
   labResults: many(labResults),
 }));
-export const shipmentsRelations = relations(shipments, ({ one }) => ({
-  kit: one(kits, { fields: [shipments.kitId], references: [kits.id] }),
+export const shipmentsRelations = relations(shipments, ({ one, many }) => ({
+  kits: many(shipmentKits),
+  customer: one(customers, { fields: [shipments.customerId], references: [customers.id] }),
+  order: one(orders, { fields: [shipments.orderId], references: [orders.id] }),
+  label: one(shipmentLabels, { fields: [shipments.id], references: [shipmentLabels.shipmentId] }),
+}));
+export const shipmentKitsRelations = relations(shipmentKits, ({ one }) => ({
+  shipment: one(shipments, { fields: [shipmentKits.shipmentId], references: [shipments.id] }),
+  kit: one(kits, { fields: [shipmentKits.kitId], references: [kits.id] }),
+}));
+export const shipmentLabelsRelations = relations(shipmentLabels, ({ one }) => ({
+  shipment: one(shipments, { fields: [shipmentLabels.shipmentId], references: [shipments.id] }),
 }));
 export const labResultsRelations = relations(labResults, ({ one }) => ({
   kit: one(kits, { fields: [labResults.kitId], references: [kits.id] }),

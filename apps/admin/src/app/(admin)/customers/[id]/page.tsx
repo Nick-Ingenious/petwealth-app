@@ -1,14 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Users } from "lucide-react";
-import { AppError, can, getCustomer } from "@petwealth/api";
+import { AppError, can, getCustomer, listCustomerShipments } from "@petwealth/api";
 import { SPECIES_LABEL } from "@petwealth/domain";
 import { Badge, Card, CardBody, CardHeader, KitStatusBadge, PageHeader } from "@petwealth/ui";
 import { requireStaff } from "@/lib/auth";
 import { customerRef, formatCents, formatDate, formatDateTime, fullName, orderRef, petAge } from "@/lib/format";
+import { ShipmentStatusBadge } from "@/components/shipment-status";
 import { CustomerForm } from "./customer-form";
+import { RegisterKits } from "./register-kits";
+import { RetryLabel } from "./retry-label";
 
-const TEMPLATE_LABEL: Record<string, string> = { kit_shipped: "Kit shipped", kit_received: "Kit received at lab", results_ready: "Results ready" };
+const TEMPLATE_LABEL: Record<string, string> = {
+  kit_shipped: "Kit shipped",
+  kit_received: "Kit received at lab",
+  results_ready: "Results ready",
+  return_label_ready: "FedEx return code",
+};
 
 export default async function CustomerDetail({ params }: PageProps<"/customers/[id]">) {
   const staff = await requireStaff("customers.view");
@@ -18,6 +26,8 @@ export default async function CustomerDetail({ params }: PageProps<"/customers/[
     if (e instanceof AppError && e.status === 404) notFound();
     throw e;
   });
+  const mailers = can(staff, "kits.view") ? await listCustomerShipments(staff, c.id) : [];
+  const returns = mailers.filter((m) => m.direction === "return");
   return (
     <>
       <p className="mb-2 text-sm"><Link href="/customers" className="text-ink-muted hover:text-ink">← Customers</Link></p>
@@ -34,6 +44,57 @@ export default async function CustomerDetail({ params }: PageProps<"/customers/[
               />
             </CardBody>
           </Card>
+          {can(staff, "kits.manage") ? (
+            <Card>
+              <CardHeader title="Register kits" description="For phone support: scan the customer's tubes and choose each pet, as they would in the app." />
+              <CardBody>
+                <RegisterKits customerId={c.id} pets={c.pets.map((p) => ({ id: p.id, name: p.name, species: p.species }))} />
+              </CardBody>
+            </Card>
+          ) : null}
+          {can(staff, "kits.view") ? (
+            <Card>
+              <CardHeader title="Return mailers" description="One FedEx code per group of kits registered together." />
+              <CardBody>
+                {returns.length === 0 ? <p className="text-sm text-ink-muted">No kits registered yet.</p> : null}
+                <ul className="divide-y divide-line">
+                  {returns.map((m) => (
+                    <li key={m.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                      <div className="space-y-1">
+                        <p className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono font-medium">{m.rmaNumber}</span>
+                          <ShipmentStatusBadge status={m.status} />
+                          {m.carrier === "test" ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">Test carrier</span> : null}
+                        </p>
+                        <p className="text-xs text-ink-subtle">
+                          {formatDateTime(m.createdAt)}
+                          {m.trackingNumber ? ` · FedEx ${m.trackingNumber}` : ""}
+                          {m.statusDetail ? ` · ${m.statusDetail}` : ""}
+                        </p>
+                        <p className="flex flex-wrap gap-1.5 text-xs">
+                          {m.kits.map(({ kit }) => (
+                            <Link key={kit.id} href={`/kits/${kit.code}`} className="rounded bg-canvas px-1.5 py-0.5 font-mono text-brand-700 hover:underline">
+                              {kit.code}
+                              {kit.pet ? ` · ${kit.pet.name}` : ""}
+                            </Link>
+                          ))}
+                        </p>
+                        {m.status === "failed" && m.error ? <p className="text-xs text-red-600">{m.error}</p> : null}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {m.labelFormat && m.status !== "failed" && m.status !== "pending" ? (
+                          <a href={`/api/v1/shipments/${m.id}/label`} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-700 hover:underline">
+                            {m.labelFormat === "qr_png" ? "View QR code" : "View label"}
+                          </a>
+                        ) : null}
+                        {(m.status === "failed" || m.status === "pending") && can(staff, "kits.manage") ? <RetryLabel customerId={c.id} shipmentId={m.id} /> : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardBody>
+            </Card>
+          ) : null}
           <Card>
             <CardHeader title="Orders" description={`${c.orders.length} total`} />
             <CardBody>

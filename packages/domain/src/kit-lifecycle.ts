@@ -53,8 +53,10 @@ export const KIT_STATUS_META: Record<
  * post-shipment state.
  */
 const TRANSITIONS: Record<KitStatus, readonly KitStatus[]> = {
-  ordered: ["label_created", "cancelled"],
-  label_created: ["shipped", "cancelled"],
+  // A customer can scan + register a kit before we've recorded it as shipped
+  // (e.g. outbound tracking not connected, or a kit bought at a vet).
+  ordered: ["label_created", "activated", "cancelled"],
+  label_created: ["shipped", "activated", "cancelled"],
   shipped: ["delivered", "activated", "received_at_lab", "cancelled"],
   delivered: ["activated", "received_at_lab", "cancelled"],
   activated: ["assigned", "received_at_lab", "cancelled"],

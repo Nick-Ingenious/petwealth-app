@@ -57,7 +57,7 @@ async function main() {
   console.log("Clearing tables…");
   await db.execute(
     sql.raw(
-      "TRUNCATE events, notifications, rerun_queue, ai_reports, lab_results, lab_batches, shipments, kits, order_items, orders, products, pets, addresses, customers, staff_users, role_permissions, roles RESTART IDENTITY CASCADE",
+      "TRUNCATE events, notifications, rerun_queue, ai_reports, lab_results, lab_batches, shipment_labels, shipment_kits, shipments, webhook_events, kits, order_items, orders, products, pets, addresses, customers, staff_users, role_permissions, roles RESTART IDENTITY CASCADE",
     ),
   );
 
@@ -253,7 +253,8 @@ async function main() {
             new Date(placedAt.getTime() + i * stepGap + faker.number.int({ min: 0, max: Math.floor(stepGap * 0.5) })),
         );
         const status = steps.at(-1)!;
-        const hasCode = steps.includes("label_created");
+        // Codes are linked when the customer scans the tube to register it.
+        const hasCode = steps.includes("activated");
         const milestones: Record<string, Date> = {};
         steps.forEach((st, i) => {
           const field = milestoneFieldFor(st);
@@ -296,29 +297,34 @@ async function main() {
           );
         }
 
-        if (hasCode) {
-          await db.insert(s.shipments).values([
-            {
-              kitId: kit!.id,
-              direction: "outbound" as const,
-              trackingNumber: trackingNumber(),
-              status: steps.includes("delivered")
-                ? ("delivered" as const)
-                : steps.includes("shipped")
-                  ? ("in_transit" as const)
-                  : ("label_created" as const),
-            },
-            {
-              kitId: kit!.id,
-              direction: "return" as const,
-              trackingNumber: trackingNumber(),
-              status: steps.includes("received_at_lab")
-                ? ("delivered" as const)
-                : steps.includes("in_transit")
-                  ? ("in_transit" as const)
-                  : ("label_created" as const),
-            },
-          ]);
+        // Outbound box once shipped; return mailer (RMA + QR) once the customer registered the kit.
+        const shipmentRows = [
+          steps.includes("shipped") && {
+            direction: "outbound" as const,
+            status: steps.includes("delivered") ? ("delivered" as const) : ("in_transit" as const),
+          },
+          steps.includes("assigned") && {
+            direction: "return" as const,
+            labelFormat: "qr_png",
+            status: steps.includes("received_at_lab")
+              ? ("delivered" as const)
+              : steps.includes("in_transit")
+                ? ("in_transit" as const)
+                : ("label_created" as const),
+          },
+        ].filter((r) => r !== false);
+        for (const row of shipmentRows) {
+          const [sh] = await db
+            .insert(s.shipments)
+            .values({ ...row, customerId: customer.id, orderId: order!.id, trackingNumber: trackingNumber() })
+            .returning();
+          if (row.direction === "return") {
+            await db
+              .update(s.shipments)
+              .set({ rmaNumber: `PWR${String(sh!.number).padStart(7, "0")}` })
+              .where(sql`${s.shipments.id} = ${sh!.id}`);
+          }
+          await db.insert(s.shipmentKits).values({ shipmentId: sh!.id, kitId: kit!.id });
         }
 
         if (customer.smsOptIn && customer.phone) {

@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Third-party adapters (Shopify, later FedEx/Twilio/lab). Pure parsing + verification; no database access.",
   "exports": {
-    "./shopify": "./src/shopify/index.ts"
+    "./shopify": "./src/shopify/index.ts",
+    "./carrier": "./src/carrier/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -14,12 +15,14 @@
   },
   "dependencies": {
     "@petwealth/domain": "workspace:*",
+    "qrcode": "^1.5.4",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/qrcode": "^1.5.6",
+    "tsx": "^4.23.15",
     "typescript": "6.0.3",
-    "vitest": "^5.1.1",
-    "tsx": "^4.23.15"
+    "vitest": "^5.1.1"
   }
 }

@@ -4,6 +4,7 @@ import { FlaskConical } from "lucide-react";
 import { AppError, can, getKit } from "@petwealth/api";
 import { allowedNextStatuses, parseKitCode } from "@petwealth/domain";
 import { Badge, Card, CardBody, CardHeader, DefinitionList, KitStatusBadge, PageHeader } from "@petwealth/ui";
+import { ShipmentStatusBadge } from "@/components/shipment-status";
 import { Timeline } from "@/components/timeline";
 import { requireStaff } from "@/lib/auth";
 import { formatDateTime, fullName, kitName, orderRef } from "@/lib/format";
@@ -62,12 +63,17 @@ export default async function KitDetail({ params }: PageProps<"/kits/[code]">) {
             <CardBody className="space-y-3 text-sm">
               {kit.shipments.length === 0 ? <p className="text-ink-muted">No labels yet.</p> : null}
               {kit.shipments.map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-2">
+                <div key={s.id} className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-medium capitalize">{s.direction}</p>
-                    <p className="font-mono text-xs text-ink-muted">FedEx {s.trackingNumber}</p>
+                    <p className="font-medium">{s.direction === "return" ? `Return mailer ${s.rmaNumber ?? ""}` : "Outbound"}</p>
+                    <p className="font-mono text-xs text-ink-muted">{s.trackingNumber ? `FedEx ${s.trackingNumber}` : "No tracking yet"}</p>
+                    {s.labelFormat && !["pending", "failed"].includes(s.status) ? (
+                      <a href={`/api/v1/shipments/${s.id}/label`} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand-700 hover:underline">
+                        {s.labelFormat === "qr_png" ? "View QR code" : "View label"}
+                      </a>
+                    ) : null}
                   </div>
-                  <Badge tone={s.status === "delivered" ? "success" : s.status === "exception" ? "danger" : "info"}>{s.status.replace("_", " ")}</Badge>
+                  <ShipmentStatusBadge status={s.status} />
                 </div>
               ))}
             </CardBody>
