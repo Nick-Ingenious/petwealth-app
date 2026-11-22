@@ -1,0 +1,16 @@
+@import "tailwindcss";
+@import "@petwealth/ui/styles.css";
+
+@source "../../../../packages/ui/src";
+
+/* Portal look: warm paper background, ink-navy actions, lavender highlights. */
+@theme {
+  --color-canvas: #f8f6f2;
+  --color-ink: #1b2330;
+  --color-lilac-100: #efeafe;
+  --color-lilac-200: #e2d8fd;
+  --color-lilac-300: #c9b8fb;
+  --color-sun-50: #fdf8ec;
+}
+
+html { -webkit-tap-highlight-color: transparent; }

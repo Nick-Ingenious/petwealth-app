@@ -4,8 +4,22 @@
     {
       "name": "admin",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@petwealth/admin", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "@petwealth/admin",
+        "dev"
+      ],
       "port": 3001
+    },
+    {
+      "name": "portal",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@petwealth/portal",
+        "dev"
+      ],
+      "port": 3002
     }
   ]
 }

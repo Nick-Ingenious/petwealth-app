@@ -8,7 +8,7 @@ Monorepo, schema + seed, kit lifecycle, RBAC, admin: Dashboard, Orders, Tests, C
 - ✅ Kit registration → one return mailer (RMA + FedEx code) per group; FedEx adapter (+ test carrier); tracking cron moves kits to In Transit — see [SHIPPING.md](SHIPPING.md). Next: verify against FedEx sandbox, QR returns (FedEx Returns Technology), outbound via Shopify fulfillments.
 - Twilio SMS worker for `notifications` rows (`queued` → `sent` → `delivered`), STOP handling. Start A2P 10DLC registration early — it takes weeks.
 - Lab Upload (CSV/PDF via Vercel Blob) → review → release; Lab Results; Rerun Queue; Kit Tracking
-- `apps/portal`: Clerk instance B, QR kit activation, pet registration, results view (mobile-first)
+- ✅ `apps/portal` (first pass): onboarding, add pet, kit activation with QR deep links + in-app scan, FedEx code screen, kit journey — see [PORTAL.md](PORTAL.md). Next: Vercel project + customer Clerk app, results view (with 2d), pet photos, profile editing.
 
 ## Milestone 3 — AI
 - AI report generation (AI SDK + Vercel AI Gateway, Claude) → `ai_reports`, staff review before release

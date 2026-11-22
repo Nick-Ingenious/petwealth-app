@@ -8,6 +8,7 @@ export * from "./services/dashboard";
 export * from "./services/kits";
 export * from "./services/orders";
 export * from "./services/pets";
+export * from "./services/portal";
 export * from "./services/returns";
 export * from "./services/shopify";
 export * from "./services/staff";

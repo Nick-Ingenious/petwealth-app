@@ -28,3 +28,18 @@ export function requirePermission(ctx: StaffContext, permission: Permission): vo
 export function actorFields(ctx: StaffContext) {
   return { actorType: "staff" as const, actorId: ctx.staffId, actorLabel: ctx.email };
 }
+
+/**
+ * A signed-in customer (portal / mobile app). Built from the customer Clerk
+ * session; every portal service scopes its queries to `customerId`.
+ */
+export interface CustomerContext {
+  kind: "customer";
+  customerId: string;
+  email: string;
+  needsOnboarding: boolean;
+}
+
+export function customerActor(ctx: CustomerContext) {
+  return { actorType: "customer" as const, actorId: ctx.customerId, actorLabel: ctx.email };
+}

@@ -16,6 +16,7 @@ function createDb() {
     max: Number(process.env.DATABASE_POOL_MAX ?? 5),
     prepare: !url.includes("-pooler."), // Neon's PgBouncer pooler doesn't support prepared statements
     connect_timeout: 10,
+    onnotice: () => {}, // silence "already exists, skipping" notices from idempotent DDL
   });
   return drizzle(client, { schema, casing: "snake_case" });
 }
