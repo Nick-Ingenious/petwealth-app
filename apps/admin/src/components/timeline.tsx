@@ -17,6 +17,9 @@ const LABELS: Record<string, string> = {
   "order.created": "Order placed",
   "order.cancelled": "Order cancelled",
   "order.needs_attention": "⚠ Needs attention",
+  "order.note": "Note added",
+  "order.tracking_added": "Outbound tracking added",
+  "order.tracking_updated": "Outbound tracking changed",
   "kit.created": "Kit ordered",
   "kit.shipping_exception": "⚠ FedEx shipping exception",
   "shipment.created": "Return mailer opened",
@@ -29,7 +32,7 @@ const LABELS: Record<string, string> = {
   "pet.updated": "Pet details updated",
 };
 
-function describe(e: EventRow): string {
+export function describeEvent(e: EventRow): string {
   if (e.type === "kit.status_changed" && isStatus(e.payload.to)) {
     const pet = typeof e.payload.petName === "string" ? ` (${e.payload.petName})` : "";
     return `${KIT_STATUS_META[e.payload.to].label}${pet}`;
@@ -48,7 +51,7 @@ export function Timeline({ events, kitCodes }: { events: EventRow[]; kitCodes?: 
           <li key={e.id} className="relative">
             <span className="absolute -left-[29px] top-1.5 size-2.5 rounded-full bg-brand-500 ring-4 ring-surface" aria-hidden />
             <p className="text-sm font-medium text-ink">
-              {describe(e)}
+              {describeEvent(e)}
               {code ? <span className="ml-2 font-mono text-xs text-ink-muted">{code}</span> : null}
             </p>
             <p className="text-xs text-ink-subtle">
