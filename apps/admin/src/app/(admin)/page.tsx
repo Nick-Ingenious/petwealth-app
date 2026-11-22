@@ -16,6 +16,8 @@ const RANGES = [
   { value: "365", label: "Last 12 months" },
 ];
 
+const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
+
 export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const staff = await requireStaff("dashboard.view");
   const sp = await searchParams;
@@ -32,7 +34,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={<Package className="size-5" />} label={`Orders · ${label}`} value={d.kpis.orders.value.toLocaleString()} change={d.kpis.orders.changePct} hint="vs previous period" />
+        <StatCard icon={<Package className="size-5" />} label={`Orders · ${label}`} value={d.kpis.orders.value.toLocaleString()} change={d.kpis.orders.changePct} hint={`${plural(d.kpis.orders.kits, "kit")} total · change vs previous period`} />
         <StatCard icon={<DollarSign className="size-5" />} label={`Revenue · ${label}`} value={formatCents(d.kpis.revenueCents.value)} change={d.kpis.revenueCents.changePct} hint="Excludes refunded orders" />
         <StatCard icon={<Users className="size-5" />} label="Customers (all time)" value={d.kpis.customers.value.toLocaleString()} change={d.kpis.customers.changePct} hint={`${d.kpis.customers.newInRange} new · ${label.toLowerCase()}`} />
         <StatCard icon={<FlaskConical className="size-5" />} label="Kits at or headed to the lab" value={d.kpis.inProgressKits.value.toLocaleString()} hint="In transit, received, processing, rerun" />
@@ -70,7 +72,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="Kits ordered by type" description={label} />
+          <CardHeader
+            title="Kits ordered by type"
+            description={`${plural(d.kpis.orders.kits, "kit")} in ${plural(d.kpis.orders.value, "order")} · ${label}`}
+          />
           <CardBody className="space-y-5">
             {(["dog", "cat"] as const).map((species) => {
               const rows = PANELS.map((panel) => ({ panel, n: d.kitsByPanel.find((r) => r.species === species && r.panel === panel)?.n ?? 0 }));

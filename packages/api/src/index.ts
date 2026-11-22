@@ -1,4 +1,5 @@
 export * from "./audit";
+export * from "./config";
 export * from "./context";
 export * from "./errors";
 export * from "./pagination";
@@ -7,5 +8,6 @@ export * from "./services/dashboard";
 export * from "./services/kits";
 export * from "./services/orders";
 export * from "./services/pets";
+export * from "./services/returns";
 export * from "./services/shopify";
 export * from "./services/staff";

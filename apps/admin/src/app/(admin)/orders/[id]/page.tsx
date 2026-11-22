@@ -14,6 +14,7 @@ import {
   Package,
   QrCode,
   Receipt,
+  RotateCcw,
   ShoppingBag,
   Truck,
   User,
@@ -21,11 +22,12 @@ import {
 } from "lucide-react";
 import { AppError, can, getOrder } from "@petwealth/api";
 import { ROLE_LABEL, SPECIES_LABEL, type Species, type TestType } from "@petwealth/domain";
-import { Badge, Button, Card, EmptyState, KitStatusBadge, cn, type Tone } from "@petwealth/ui";
+import { Badge, Card, EmptyState, KitStatusBadge, cn, type Tone } from "@petwealth/ui";
 import { describeEvent, type EventRow } from "@/components/timeline";
 import { requireStaff } from "@/lib/auth";
 import { formatCents, formatDate, formatDateTime, fullName, kitName, orderRef } from "@/lib/format";
 import { NoteForm } from "./note-form";
+import { ShippingDialog } from "./shipping-dialog";
 import { computeSteps, ORDER_STEPS, TEST_STEPS, type StepKey, type StepState } from "./progress";
 
 const isUuid = (s: string) => /^[0-9a-f-]{36}$/i.test(s);
@@ -49,6 +51,17 @@ const PRODUCT_BLURB: Record<TestType, (pet: string) => string> = {
 };
 const productBlurb = (p: { species: Species; testType: TestType }) => PRODUCT_BLURB[p.testType](SPECIES_LABEL[p.species].noun.toLowerCase());
 
+const CARRIER_LABEL: Record<string, string> = { fedex: "FedEx", ups: "UPS", usps: "USPS" };
+const SHIPMENT_LABEL: Record<string, string> = {
+  pending: "Pending",
+  failed: "Label failed",
+  label_created: "Label created",
+  in_transit: "In transit",
+  delivered: "Delivered",
+  exception: "Exception",
+};
+const SHIPMENT_TONE: Record<string, Tone> = { pending: "neutral", failed: "danger", label_created: "neutral", in_transit: "info", delivered: "success", exception: "danger" };
+
 const ACTOR_CHIP: Record<string, string> = { staff: "Staff", customer: "Pet Owner", integration: "Integration", system: "System" };
 
 export default async function OrderDetail({ params }: PageProps<"/orders/[id]">) {
@@ -65,11 +78,28 @@ export default async function OrderDetail({ params }: PageProps<"/orders/[id]">)
   const kitCodes = new Map(order.kits.map((k) => [k.id, k.code]));
   const orderSteps = computeSteps(ORDER_STEPS, order.kits, order.timeline, order.placedAt);
   const testSteps = computeSteps(TEST_STEPS, order.kits, order.timeline, order.placedAt);
-  const shipments = order.kits.flatMap((k) => k.shipments.map((s) => ({ ...s, kit: k })));
+  // One shipment can cover several kits (shipment_kits), so group by shipment.
+  const shipmentMap = new Map<string, { shipment: (typeof order.kits)[number]["shipments"][number]; kitCodes: string[] }>();
+  for (const k of order.kits) {
+    for (const s of k.shipments) {
+      const entry = shipmentMap.get(s.id) ?? { shipment: s, kitCodes: [] };
+      if (k.code) entry.kitCodes.push(k.code);
+      shipmentMap.set(s.id, entry);
+    }
+  }
+  const shipments = [...shipmentMap.values()]
+    .filter((x) => x.shipment.status !== "voided")
+    .sort((a, b) => (a.shipment.direction === b.shipment.direction ? 0 : a.shipment.direction === "outbound" ? -1 : 1));
+  const outbound = shipments.find((x) => x.shipment.direction === "outbound")?.shipment ?? null;
+  const returnMailers = shipments
+    .filter((x) => x.shipment.direction === "return")
+    .map(({ shipment: s }) => ({ id: s.id, rmaNumber: s.rmaNumber, trackingNumber: s.trackingNumber, status: s.status }));
   const testTypes = [...new Set(order.kits.map(kitName))];
   const pets = [...new Map(order.kits.flatMap((k) => (k.pet ? [[k.pet.id, k.pet] as const] : []))).values()];
 
   const closed = order.status === "cancelled" || order.status === "refunded";
+  const canShip = can(staff, "tracking.manage");
+  const outboundEditable = !closed && (!outbound || ["pending", "failed", "label_created"].includes(outbound.status));
   const stage = [...testSteps, ...orderSteps].find((s) => s.current);
   const headerBadge: { tone: Tone; label: string } = closed
     ? { tone: "danger", label: order.status === "refunded" ? "Refunded" : "Cancelled" }
@@ -155,28 +185,39 @@ export default async function OrderDetail({ params }: PageProps<"/orders/[id]">)
 
       {/* ── Shipping & tracking ─────────────────────────────────── */}
       <Card className="p-6">
-        <SectionTitle>Shipping &amp; Tracking</SectionTitle>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-ink">Shipping &amp; Tracking</h2>
+          {canShip && shipments.length && outboundEditable ? (
+            <ShippingDialog
+              orderId={order.id}
+              outbound={outbound ? { carrier: outbound.carrier, trackingNumber: outbound.trackingNumber } : null}
+              returns={returnMailers}
+              trigger={outbound ? "Edit shipping" : "Add outbound tracking"}
+              triggerVariant="secondary"
+            />
+          ) : null}
+        </div>
         {shipments.length ? (
           <ul className="divide-y divide-line">
-            {shipments.map((s) => (
+            {shipments.map(({ shipment: s, kitCodes: codes }) => (
               <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                <div className="flex items-center gap-3">
-                  <div className="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-600">
-                    <Truck className="size-5" aria-hidden />
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+                    {s.direction === "outbound" ? <Truck className="size-5" aria-hidden /> : <RotateCcw className="size-5" aria-hidden />}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-ink">
                       {s.direction === "outbound" ? "Outbound to customer" : "Return to lab"}
-                      {s.kit.code ? <span className="ml-2 font-mono text-xs text-ink-muted">{s.kit.code}</span> : null}
+                      {s.rmaNumber ? <span className="ml-2 font-mono text-xs text-ink-muted">{s.rmaNumber}</span> : null}
                     </p>
                     <p className="font-mono text-xs text-ink-muted">
-                      {s.carrier.toUpperCase()} {s.trackingNumber}
+                      {(CARRIER_LABEL[s.carrier] ?? s.carrier.toUpperCase())} {s.trackingNumber ?? "· awaiting tracking number"}
                     </p>
+                    {codes.length ? <p className="mt-0.5 truncate font-mono text-xs text-ink-subtle">{codes.join(", ")}</p> : null}
+                    {s.status === "failed" && s.error ? <p className="mt-0.5 text-xs text-red-600">{s.error}</p> : null}
                   </div>
                 </div>
-                <Badge tone={s.status === "delivered" ? "success" : s.status === "exception" || s.status === "voided" ? "danger" : "info"}>
-                  <span className="capitalize">{s.status.replace("_", " ")}</span>
-                </Badge>
+                <Badge tone={SHIPMENT_TONE[s.status] ?? "info"}>{SHIPMENT_LABEL[s.status] ?? s.status}</Badge>
               </li>
             ))}
           </ul>
@@ -190,9 +231,9 @@ export default async function OrderDetail({ params }: PageProps<"/orders/[id]">)
             title="No shipping information added yet"
             description="Add tracking numbers to enable automatic status updates for this order."
             action={
-              <Button variant="brand" disabled title="Tracking numbers can be added once the FedEx integration is live">
-                <Truck className="size-4" aria-hidden /> Add shipping information
-              </Button>
+              canShip && !closed ? (
+                <ShippingDialog orderId={order.id} outbound={null} returns={[]} trigger="Add shipping information" />
+              ) : undefined
             }
           />
         )}

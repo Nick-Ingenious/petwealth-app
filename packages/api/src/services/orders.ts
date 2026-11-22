@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { kitListQuerySchema } from "@petwealth/domain";
-import { and, asc, count, desc, eq, getDb, ilike, inArray, or, schema as s, sql } from "@petwealth/db";
+import { and, asc, count, desc, eq, getDb, ilike, inArray, ne, or, schema as s, sql } from "@petwealth/db";
 import { recordEvent } from "../audit";
 import { actorFields, requirePermission, type StaffContext } from "../context";
-import { notFound } from "../errors";
+import { conflict, notFound } from "../errors";
 import { likePattern, offsetOf, toPage } from "../pagination";
+import { changeKitStatus } from "./kits";
 
 /**
  * Orders list. `status` filters to orders that have at least one kit in that
@@ -106,10 +107,11 @@ export async function getOrder(ctx: StaffContext, id: string) {
       customer: true,
       shippingAddress: true,
       items: { with: { product: true } },
-      kits: { with: { pet: true, shipments: true }, orderBy: asc(s.kits.panel) },
+      kits: { with: { pet: true, shipmentLinks: { with: { shipment: true } } }, orderBy: asc(s.kits.panel) },
     },
   });
   if (!order) throw notFound("Order");
+  const kits = order.kits.map(({ shipmentLinks, ...k }) => ({ ...k, shipments: shipmentLinks.map((l) => l.shipment) }));
   const timeline = await db
     .select()
     .from(s.events)
@@ -117,12 +119,12 @@ export async function getOrder(ctx: StaffContext, id: string) {
       or(
         and(eq(s.events.entityType, "order"), eq(s.events.entityId, order.id)),
         order.kits.length
-          ? and(eq(s.events.entityType, "kit"), inArray(s.events.entityId, order.kits.map((k) => k.id)))
+          ? and(eq(s.events.entityType, "kit"), inArray(s.events.entityId, kits.map((k) => k.id)))
           : undefined,
       ),
     )
     .orderBy(desc(s.events.occurredAt));
-  return { ...order, timeline };
+  return { ...order, kits, timeline };
 }
 
 const orderNoteSchema = z.object({
@@ -143,5 +145,81 @@ export async function addOrderNote(ctx: StaffContext, input: z.input<typeof orde
     type: "order.note",
     ...actorFields(ctx),
     payload: { note, via: ctx.via },
+  });
+}
+
+export const SHIPPING_CARRIERS = ["fedex", "ups", "usps"] as const;
+
+const outboundShipmentSchema = z.object({
+  orderId: z.uuid(),
+  carrier: z.enum(SHIPPING_CARRIERS),
+  trackingNumber: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/\s+/g, "").toUpperCase())
+    .pipe(z.string().regex(/^[A-Z0-9]{8,40}$/, "Enter a valid tracking number (letters and digits only).")),
+  note: z.string().trim().max(1000, "Notes are limited to 1,000 characters.").optional(),
+});
+
+/**
+ * Record the outbound (kit → customer) tracking number for an order. One
+ * shipment covers every non-cancelled kit on the order. Kits still "ordered"
+ * move to "label_created"; the tracking cron then moves them to shipped and
+ * delivered as the carrier reports (FedEx only, for now).
+ */
+export async function saveOutboundShipment(ctx: StaffContext, input: z.input<typeof outboundShipmentSchema>) {
+  requirePermission(ctx, "tracking.manage");
+  const { orderId, carrier, trackingNumber, note } = outboundShipmentSchema.parse(input);
+  const actor = actorFields(ctx);
+
+  return getDb().transaction(async (tx) => {
+    const [order] = await tx.select().from(s.orders).where(eq(s.orders.id, orderId)).for("update");
+    if (!order) throw notFound("Order");
+    if (order.status === "cancelled" || order.status === "refunded") throw conflict("This order is closed, so it can't be shipped.");
+    const kits = (await tx.select().from(s.kits).where(eq(s.kits.orderId, order.id)).for("update")).filter((k) => k.status !== "cancelled");
+    if (!kits.length) throw conflict("This order has no kits to ship.");
+
+    const [taken] = await tx
+      .select({ orderId: s.shipments.orderId })
+      .from(s.shipments)
+      .where(and(eq(s.shipments.carrier, carrier), eq(s.shipments.trackingNumber, trackingNumber)));
+    if (taken && taken.orderId !== order.id) throw conflict("That tracking number is already used by another order.");
+
+    const [existing] = await tx
+      .select()
+      .from(s.shipments)
+      .where(and(eq(s.shipments.orderId, order.id), eq(s.shipments.direction, "outbound"), ne(s.shipments.status, "voided")));
+
+    let shipmentId: string;
+    if (existing) {
+      if (existing.status !== "label_created" && existing.status !== "pending" && existing.status !== "failed") {
+        throw conflict("The carrier has already picked this shipment up, so its tracking number can't be changed.");
+      }
+      await tx
+        .update(s.shipments)
+        .set({ carrier, trackingNumber, status: "label_created", error: null, statusDetail: null, lastTrackedAt: null })
+        .where(eq(s.shipments.id, existing.id));
+      shipmentId = existing.id;
+    } else {
+      const [created] = await tx
+        .insert(s.shipments)
+        .values({ direction: "outbound", carrier, trackingNumber, orderId: order.id, customerId: order.customerId, status: "label_created" })
+        .returning({ id: s.shipments.id });
+      shipmentId = created!.id;
+      await tx.insert(s.shipmentKits).values(kits.map((k) => ({ shipmentId, kitId: k.id })));
+    }
+
+    for (const kit of kits) {
+      if (kit.status === "ordered") await changeKitStatus(tx, kit, "label_created", actor, { via: ctx.via, trackingNumber });
+    }
+    await recordEvent(tx, {
+      entityType: "order",
+      entityId: order.id,
+      type: existing ? "order.tracking_updated" : "order.tracking_added",
+      ...actor,
+      payload: { carrier, trackingNumber, previous: existing?.trackingNumber ?? null, via: ctx.via },
+    });
+    if (note) await recordEvent(tx, { entityType: "order", entityId: order.id, type: "order.note", ...actor, payload: { note, via: ctx.via } });
+    return { shipmentId };
   });
 }

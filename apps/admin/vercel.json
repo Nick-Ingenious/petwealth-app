@@ -2,5 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "cd ../.. && pnpm --filter @petwealth/db migrate && pnpm turbo run build --filter=@petwealth/admin",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/cron/tracking",
+      "schedule": "*/30 * * * *"
+    }
+  ]
 }
