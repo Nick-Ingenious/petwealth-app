@@ -53,20 +53,30 @@ export async function getDashboard(ctx: StaffContext, input: unknown) {
           on date_trunc(${bucket}, o.placed_at) = b.bucket and o.status <> 'refunded'
           and o.placed_at >= ${from.toISOString()}::timestamptz -- first bucket is partial; keeps totals equal to the KPI
         group by b.bucket order by b.bucket`),
+      // Kits in the same orders the Orders KPI counts, so "N kits in M orders" always adds up.
       db
         .select({ species: s.kits.species, panel: s.kits.panel, n: count() })
         .from(s.kits)
-        .where(and(gte(s.kits.createdAt, from), ne(s.kits.status, "cancelled")))
+        .innerJoin(s.orders, eq(s.kits.orderId, s.orders.id))
+        .where(
+          and(
+            gte(s.orders.placedAt, from),
+            lte(s.orders.placedAt, now),
+            ne(s.orders.status, "refunded"),
+            ne(s.kits.status, "cancelled"),
+          ),
+        )
         .groupBy(s.kits.species, s.kits.panel),
     ]);
 
   const pipeline = Object.fromEntries(KIT_STATUSES.map((st) => [st, 0])) as Record<KitStatus, number>;
   for (const r of pipelineRows) pipeline[r.status] = r.n;
+  const kitsInRange = byPanel.reduce((sum, r) => sum + r.n, 0);
 
   return {
     range: { days, from: from.toISOString(), to: now.toISOString(), bucket },
     kpis: {
-      orders: { value: cur?.n ?? 0, changePct: pctChange(cur?.n ?? 0, prev?.n ?? 0) },
+      orders: { value: cur?.n ?? 0, kits: kitsInRange, changePct: pctChange(cur?.n ?? 0, prev?.n ?? 0) },
       revenueCents: { value: cur?.revenue ?? 0, changePct: pctChange(cur?.revenue ?? 0, prev?.revenue ?? 0) },
       customers: { value: allCust?.n ?? 0, newInRange: newCust?.n ?? 0, changePct: pctChange(newCust?.n ?? 0, prevCust?.n ?? 0) },
       inProgressKits: { value: inProgress?.n ?? 0 },
