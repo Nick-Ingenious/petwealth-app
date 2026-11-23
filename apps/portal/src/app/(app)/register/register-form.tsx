@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import { ArrowRight, Check, Lightbulb, Loader2, Plus, ScanLine, Trash2 } from "lucide-react";
 import { MAX_KITS_PER_MAILER, PANEL_LABEL, SPECIES_LABEL, normalizeKitCode, type Panel, type Species } from "@petwealth/domain";
 import { cn } from "@petwealth/ui";
+import { KitImage } from "@/components/brand";
 import { PrimaryButton } from "@/components/fields";
 import { checkKitAction, registerKitsAction } from "./actions";
 import { Scanner, canScanInApp, kitIdFromQr } from "./scanner";
@@ -130,7 +131,10 @@ export function RegisterForm({ pets, initialCodes, newPetId }: { pets: Pet[]; in
             </label>
             {row.state === "error" ? <p role="alert" className="mt-2 text-sm text-red-600">{row.message}</p> : null}
             {row.state === "ok" && row.species && row.panel ? (
-              <p className="mt-2 text-sm text-zinc-500">{SPECIES_LABEL[row.species].adjective} {PANEL_LABEL[row.panel]} Health Test</p>
+              <>
+                <KitImage species={row.species} panel={row.panel} className="mx-auto mt-4 h-auto w-full max-w-xs object-contain" />
+                <p className="mt-2 text-sm text-zinc-500">{SPECIES_LABEL[row.species].adjective} {PANEL_LABEL[row.panel]} Health Test</p>
+              </>
             ) : null}
 
             {row.state === "ok" ? (

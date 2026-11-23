@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { can } from "@petwealth/api";
 import { ROLE_LABEL } from "@petwealth/domain";
@@ -17,10 +18,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     <div className="flex min-h-dvh">
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 overflow-y-auto border-r border-line bg-surface lg:block">
         <div className="flex items-center gap-3 border-b border-line px-6 py-5">
-          <div className="grid size-9 place-items-center rounded-xl bg-brand-600 text-sm font-bold text-white">PW</div>
           <div>
-            <p className="font-semibold leading-tight text-ink">PetWealth</p>
-            <p className="text-xs text-ink-muted">Admin Portal</p>
+            <Image src="/brand/logo-dark.svg" alt="PetWealth" width={137} height={22} priority className="h-[22px] w-auto" />
+            <p className="mt-1 text-xs text-ink-muted">Admin Portal</p>
           </div>
         </div>
         <Sidebar sections={sections} />
