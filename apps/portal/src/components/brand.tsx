@@ -1,12 +1,33 @@
+import Image from "next/image";
 import Link from "next/link";
 import { QrCode } from "lucide-react";
+import { PANEL_LABEL, type Panel, type Species } from "@petwealth/domain";
 
+/** The PetWealth logo lockup (icon + wordmark) from the brand files. Never retype it in a font. */
 export function Wordmark() {
   return (
     <span className="flex items-center gap-2">
-      <span className="font-serif text-2xl font-bold tracking-tight text-ink">petwealth</span>
+      <Image src="/brand/logo-dark.svg" alt="PetWealth" width={156} height={25} priority className="h-[25px] w-auto" />
       <span className="rounded-md bg-lilac-100 px-2 py-0.5 text-xs font-semibold tracking-wide text-violet-600">BETA</span>
     </span>
+  );
+}
+
+/**
+ * Packshot of a kit (box + open tray) for its species and panel. The source PNGs are cropped
+ * symmetrically, so the gap between box and tray stays at the horizontal center.
+ */
+export function KitImage({ species, panel, className, priority }: { species: Species; panel: Panel; className?: string; priority?: boolean }) {
+  return (
+    <Image
+      src={`/kits/${species}-${panel}.webp`}
+      alt={`${PANEL_LABEL[panel]} sample collection kit for ${species === "dog" ? "dogs" : "cats"}`}
+      width={1200}
+      height={656}
+      sizes="(max-width: 448px) 100vw, 448px"
+      priority={priority}
+      className={className ?? "mx-auto h-auto w-full object-contain"}
+    />
   );
 }
 

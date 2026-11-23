@@ -4,7 +4,7 @@ import { ArrowRight, Check, Lightbulb, TestTube2 } from "lucide-react";
 import { AppError, getMyKit, type JourneyStep } from "@petwealth/api";
 import { DROP_OFF_WITHIN_DAYS, PANEL_LABEL } from "@petwealth/domain";
 import { cn } from "@petwealth/ui";
-import { Header, Screen } from "@/components/brand";
+import { Header, KitImage, Screen } from "@/components/brand";
 import { requireCustomer } from "@/lib/auth";
 import { CollectedButton } from "./collected-button";
 import { COLLECT } from "./instructions";
@@ -61,6 +61,7 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
       ) : (
         <h1 className="mt-4 text-4xl font-semibold leading-tight">{petName}&apos;s {PANEL_LABEL[kit.panel]} test</h1>
       )}
+      <KitImage species={kit.species} panel={kit.panel} priority className="mx-auto mt-6 h-auto w-full max-w-sm object-contain" />
       {registered ? (
         <>
           <p className="mt-4 text-3xl font-light leading-snug">Collect your pet&apos;s test sample as instructed and mail it back to our lab.</p>

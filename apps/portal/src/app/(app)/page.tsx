@@ -3,7 +3,7 @@ import { ArrowRight, ChevronRight, Plus } from "lucide-react";
 import { getPortalHome } from "@petwealth/api";
 import { PANEL_LABEL, SPECIES_LABEL } from "@petwealth/domain";
 import { cn } from "@petwealth/ui";
-import { Header, Screen } from "@/components/brand";
+import { Header, KitImage, Screen } from "@/components/brand";
 import { requireCustomer } from "@/lib/auth";
 
 export const metadata = { title: "Dashboard" };
@@ -38,7 +38,9 @@ export default async function HomePage() {
             {home.activeKits.map((k) => (
               <li key={k.id}>
                 <Link href={`/kits/${k.code}`} className="flex items-center gap-4 rounded-3xl bg-white p-4 shadow-sm">
-                  <span className="grid size-12 shrink-0 place-items-center rounded-full bg-lilac-100 text-2xl" aria-hidden>{k.species === "dog" ? "🐶" : "🐱"}</span>
+                  <span className="w-20 shrink-0" aria-hidden>
+                    <KitImage species={k.species} panel={k.panel} className="h-auto w-full object-contain" />
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-lg font-semibold">
                       {k.pet?.name ?? "Unassigned"} · {PANEL_LABEL[k.panel]}
