@@ -19,7 +19,10 @@ export function getCarrier(env: Record<string, string | undefined> = process.env
       apiKey: FEDEX_API_KEY,
       secretKey: FEDEX_SECRET_KEY,
       accountNumber: FEDEX_ACCOUNT_NUMBER,
-      environment: env.FEDEX_ENV === "production" ? "production" : "sandbox",
+      // Vercel Production talks to FedEx production; previews and local dev use the
+      // sandbox. Scope the production keys to Production and the test keys to
+      // Preview + Development, and the right pair always meets the right server.
+      environment: env.VERCEL_ENV === "production" ? "production" : "sandbox",
       returnServiceType: env.FEDEX_RETURN_SERVICE_TYPE || "FEDEX_GROUND",
       returnLabelMode: env.FEDEX_RETURN_LABEL_MODE === "qr" ? "qr" : "label",
     });
