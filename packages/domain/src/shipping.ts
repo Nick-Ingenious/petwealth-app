@@ -22,7 +22,7 @@ export const kitRegistrationSchema = z.object({
   kits: z
     .array(z.object({ kitCode: kitCodeSchema, petId: z.uuid("Choose which pet this kit is for") }))
     .min(1, "Scan at least one kit")
-    .max(MAX_KITS_PER_MAILER, `A mailer holds up to ${MAX_KITS_PER_MAILER} tubes — register the rest separately`)
+    .max(MAX_KITS_PER_MAILER, `A mailer holds up to ${MAX_KITS_PER_MAILER} tubes. Register the rest separately`)
     .refine((kits) => new Set(kits.map((k) => k.kitCode)).size === kits.length, "The same kit was scanned twice"),
 });
 export type KitRegistration = z.infer<typeof kitRegistrationSchema>;

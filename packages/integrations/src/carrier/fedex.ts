@@ -149,7 +149,7 @@ export class FedExCarrier implements Carrier {
     if (!res.ok || (opts.returnsApi && errors.length)) {
       const msg = errors.length ? errors.map((e) => `${e.code}: ${e.message}`).join("; ") : `HTTP ${res.status}`;
       if (res.status === 401 && !opts.form) this.token = null;
-      throw new CarrierError(`FedEx ${path} failed — ${msg}`, res.status >= 500 || res.status === 429 || res.status === 401, errors);
+      throw new CarrierError(`FedEx ${path} failed: ${msg}`, res.status >= 500 || res.status === 429 || res.status === 401, errors);
     }
     return json;
   }

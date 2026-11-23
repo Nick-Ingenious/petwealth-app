@@ -66,7 +66,7 @@ export async function updatePet(ctx: StaffContext, id: string, input: PetUpdate 
     const existing = await tx.query.pets.findFirst({ where: eq(s.pets.id, id), with: { kits: true } });
     if (!existing) throw notFound("Pet");
     if (existing.species !== data.species && existing.kits.length) {
-      throw conflict("Species can't be changed once kits are linked — the kits are species-specific.");
+      throw conflict("Species can't be changed once kits are linked, because the kits are species-specific.");
     }
     const [updated] = await tx.update(s.pets).set(data).where(eq(s.pets.id, id)).returning();
     await recordEvent(tx, { entityType: "pet", entityId: id, type: "pet.updated", ...actorFields(ctx), payload: { via: ctx.via } });

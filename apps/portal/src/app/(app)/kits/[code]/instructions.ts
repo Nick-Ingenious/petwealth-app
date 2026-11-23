@@ -22,7 +22,7 @@ export const COLLECT: Record<Panel, { title: string; intro: string; steps: strin
     steps: [
       "Put on the gloves before handling the collection materials.",
       "Write today's date on the blank line of the tube label.",
-      "Open the swab pouch from the end opposite the tip — never touch the tip.",
+      "Open the swab pouch from the end opposite the tip. Never touch the tip.",
       "Swab one nostril gently for about 5 seconds (stop if you feel resistance), or rub firmly inside the cheek for about 15 seconds.",
       "Put the swab tip in the tube, break the shaft at the breakpoint, and cap securely.",
       "Place the tube in the specimen bag and seal it completely.",

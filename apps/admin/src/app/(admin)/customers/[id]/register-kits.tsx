@@ -38,7 +38,7 @@ export function RegisterKits({ customerId, pets }: { customerId: string; pets: P
       setRows([{ kitCode: "", petId: "" }]);
       setMessage(
         d.label.status === "label_created"
-          ? { ok: true, text: `Registered ${d.kits.length} kit${d.kits.length > 1 ? "s" : ""} — return mailer ${d.rmaNumber} is ready.` }
+          ? { ok: true, text: `Registered ${d.kits.length} kit${d.kits.length > 1 ? "s" : ""}. Return mailer ${d.rmaNumber} is ready.` }
           : { ok: false, text: `Registered as ${d.rmaNumber}, but the FedEx code failed: ${d.label.error} Use “Retry label” below.` },
       );
     });

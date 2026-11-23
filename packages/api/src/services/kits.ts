@@ -187,7 +187,7 @@ export async function receiveKit(ctx: StaffContext, input: z.input<typeof receiv
     const updated = await changeKitStatus(tx, kit, "received_at_lab", actorFields(ctx), { via: ctx.via });
     const pet = kit.petId ? await tx.query.pets.findFirst({ where: eq(s.pets.id, kit.petId) }) : null;
     const warnings: string[] = [];
-    if (!pet) warnings.push("No pet is registered to this kit yet — contact the customer before processing.");
+    if (!pet) warnings.push("No pet is registered to this kit yet. Contact the customer before processing.");
     if (["shipped", "delivered"].includes(kit.status)) warnings.push("Customer never activated this kit.");
     return { kit: updated, pet: pet ?? null, warnings };
   });

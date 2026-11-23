@@ -87,7 +87,7 @@ export function Scanner() {
                 <p className="font-mono font-medium">{e.input}</p>
                 {e.result.ok ? (
                   <>
-                    <p>Received{e.result.data.petName ? ` — ${e.result.data.petName}` : ""}.</p>
+                    <p>Received{e.result.data.petName ? ` for ${e.result.data.petName}` : ""}.</p>
                     {e.result.data.warnings.map((w) => <p key={w} className="text-amber-800">{w}</p>)}
                   </>
                 ) : (

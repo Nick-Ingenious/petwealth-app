@@ -69,7 +69,7 @@ export default async function HomePage() {
           </Link>
         </div>
         {home.pets.length === 0 ? (
-          <p className="text-zinc-500">No pets yet — you&apos;ll add them when you register a kit.</p>
+          <p className="text-zinc-500">No pets yet. You&apos;ll add them when you register a kit.</p>
         ) : (
           <ul className="grid grid-cols-2 gap-3">
             {home.pets.map((p) => (
