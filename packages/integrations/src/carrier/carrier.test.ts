@@ -5,6 +5,7 @@ const req: ReturnShipmentRequest = {
   rmaNumber: "PWR0100001",
   from: { name: "Jordan Rivera", phone: "+14155550142", line1: "500 Example Ave", line2: "Apt 4", city: "San Francisco", region: "CA", postalCode: "94110", country: "US" },
   to: { name: "Sample Receiving", company: "PetWealth Lab", phone: "+15555550100", line1: "1 Lab Way", city: "Austin", region: "TX", postalCode: "78701", country: "US" },
+  customerEmail: "Jordan@Example.com",
   kitCount: 2,
   weightLbs: 1,
 };
@@ -21,7 +22,7 @@ function fakeFetch(responses: Record<string, { status?: number; body: unknown }>
   return { fn: fn as unknown as typeof fetch, calls };
 }
 
-const fedexCfg = { apiKey: "k", secretKey: "s", accountNumber: "740561073", environment: "sandbox" as const, returnServiceType: "FEDEX_GROUND", returnLabelMode: "label" as const };
+const fedexCfg = { apiKey: "k", secretKey: "s", accountNumber: "740561073", environment: "sandbox" as const, returnServiceType: "FEDEX_GROUND" };
 
 describe("FedExCarrier", () => {
   it("authenticates, builds a return shipment and parses the label", async () => {
@@ -94,8 +95,68 @@ describe("FedExCarrier", () => {
     expect(e2).toMatchObject({ retryable: true });
   });
 
-  it("refuses QR mode until FedEx Returns Technology is configured", async () => {
-    await expect(new FedExCarrier({ ...fedexCfg, returnLabelMode: "qr" }).createReturnShipment(req)).rejects.toThrow(/Returns Technology/);
+});
+
+describe("FedExCarrier QR returns (FedEx Returns API)", () => {
+  const returns = { retailerId: 7681814, shipToAddressId: "TXLAB", sku: "7681814_DEFAULT_ITEM" };
+  const created = { output: { rma: { rmaId: "7681814-000042", rmaNumber: "PWR0100001", status: "Created", shipments: [{ label: { labelId: 1, trackingNumber: "795798473806" } }] } } };
+
+  it("creates an RMA and returns a QR code of the RMA number", async () => {
+    const { fn, calls } = fakeFetch({ "/oauth/token": { body: { access_token: "tok", expires_in: 3600 } }, "/returns/v1/rma": { body: created } });
+    const out = await new FedExCarrier({ ...fedexCfg, returns, fetch: fn }).createReturnShipment(req);
+    expect(out).toMatchObject({ trackingNumber: "795798473806", carrierReference: "7681814-000042", label: { format: "qr_png", mimeType: "image/png" } });
+    expect(Buffer.from(out.label.contentBase64, "base64").subarray(1, 4).toString()).toBe("PNG");
+
+    const headers = calls[1]!.init.headers as Record<string, string>;
+    expect(headers["x-authorization"]).toBe("Bearer tok");
+    const body = JSON.parse(String(calls[1]!.init.body));
+    expect(body).toMatchObject({
+      rmaNumber: "PWR0100001",
+      shippingService: "FDXE",
+      returnProgram: "LABEL",
+      labelRequired: true,
+      emailNotification: false,
+      shippingCostResponsibility: "Retailer",
+      shipToAddressId: "TXLAB",
+      customer: { id: 7681814, contact: { personName: "Jordan Rivera", emailAddress: "jordan@example.com" } },
+      orders: [{ orderNumber: "PWR0100001", items: [{ sku: "7681814_DEFAULT_ITEM", quantity: 2 }] }],
+    });
+    // The customer's home address is not sent to FedEx Returns.
+    expect(JSON.stringify(body)).not.toContain("Example Ave");
+  });
+
+  it("treats business errors on HTTP 200 as failures", async () => {
+    const { fn } = fakeFetch({
+      "/oauth/token": { body: { access_token: "tok", expires_in: 3600 } },
+      "/returns/v1/rma": { body: { errors: [{ code: "ERR-RMA-0030", message: "Invalid SKU" }] } },
+    });
+    const e = await new FedExCarrier({ ...fedexCfg, returns, fetch: fn }).createReturnShipment(req).catch((x) => x);
+    expect(e).toBeInstanceOf(CarrierError);
+    expect(e).toMatchObject({ retryable: false });
+    expect(e.message).toContain("Invalid SKU");
+  });
+
+  it("reuses our own RMA when a retry finds it already created", async () => {
+    const { fn } = fakeFetch({
+      "/oauth/token": { body: { access_token: "tok", expires_in: 3600 } },
+      "/returns/v1/rma": { status: 400, body: { errors: [{ code: "ERR-RMA-0011", message: "RMA number already exists" }] } },
+      "/returns/v1/rma/details": {
+        body: { output: { rmaspg: { content: [{ rmaId: "7681814-000042", rmaNumber: "PWR0100001", retailerId: 7681814, status: "Created", customer: { contact: { emailAddress: "jordan@example.com" } }, shipments: [{ trackingNo: "795798473806" }] }] } } },
+      },
+    });
+    const out = await new FedExCarrier({ ...fedexCfg, returns, fetch: fn }).createReturnShipment(req);
+    expect(out.trackingNumber).toBe("795798473806");
+  });
+
+  it("refuses an RMA number that belongs to someone else (e.g. the old system)", async () => {
+    const { fn } = fakeFetch({
+      "/oauth/token": { body: { access_token: "tok", expires_in: 3600 } },
+      "/returns/v1/rma": { status: 400, body: { errors: [{ code: "RMA.NUMBER.ALREADY.IN.USE", message: "in use" }] } },
+      "/returns/v1/rma/details": {
+        body: { output: { rmaspg: { content: [{ rmaNumber: "PWR0100001", retailerId: 7681814, status: "Received", customer: { contact: { emailAddress: "someone@else.com" } }, shipments: [{ trackingNo: "1" }] }] } } },
+      },
+    });
+    await expect(new FedExCarrier({ ...fedexCfg, returns, fetch: fn }).createReturnShipment(req)).rejects.toThrow(/already used in FedEx Returns/);
   });
 });
 
@@ -121,6 +182,13 @@ describe("getCarrier", () => {
     expect(getCarrier({ FEDEX_API_KEY: "k", FEDEX_SECRET_KEY: "s", FEDEX_ACCOUNT_NUMBER: "1" }).name).toBe("fedex");
   });
 
+  it("requires QR returns in production and complete settings anywhere", () => {
+    const keys = { FEDEX_API_KEY: "k", FEDEX_SECRET_KEY: "s", FEDEX_ACCOUNT_NUMBER: "1" };
+    expect(() => getCarrier({ ...keys, VERCEL_ENV: "production" })).toThrow(/QR returns are not configured/);
+    expect(() => getCarrier({ ...keys, FEDEX_RETAILER_ID: "7681814" })).toThrow(/need all of/);
+    expect(() => getCarrier({ ...keys, FEDEX_RETAILER_ID: "abc", FEDEX_RETURN_SHIP_TO_ADDRESS_ID: "TXLAB", FEDEX_RETURN_SKU: "x" })).toThrow(/must be a number/);
+  });
+
   it("uses the FedEx sandbox except in Vercel production", async () => {
     const keys = { FEDEX_API_KEY: "k", FEDEX_SECRET_KEY: "s", FEDEX_ACCOUNT_NUMBER: "1" };
     const urlFor = async (env: Record<string, string>) => {
@@ -135,7 +203,8 @@ describe("getCarrier", () => {
       await (c as unknown as { accessToken: () => Promise<string> }).accessToken();
       return seen[0];
     };
-    expect(await urlFor({ ...keys, VERCEL_ENV: "production" })).toBe("apis.fedex.com");
+    const qr = { FEDEX_RETAILER_ID: "7681814", FEDEX_RETURN_SHIP_TO_ADDRESS_ID: "TXLAB", FEDEX_RETURN_SKU: "7681814_DEFAULT_ITEM" };
+    expect(await urlFor({ ...keys, ...qr, VERCEL_ENV: "production" })).toBe("apis.fedex.com");
     expect(await urlFor({ ...keys, VERCEL_ENV: "preview" })).toBe("apis-sandbox.fedex.com");
     expect(await urlFor(keys)).toBe("apis-sandbox.fedex.com");
     expect(getCarrier({}).name).toBe("test");

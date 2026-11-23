@@ -22,21 +22,34 @@ Customer scans tube QR ─► picks pet ─► "Register N kits"
 - **Species must match the pet** (`FRES-…` is a cat kit). The kit code's type is fixed by its prefix.
 - A tube is matched to the customer's **ordered kit of the same type** (from Shopify); otherwise a **standalone kit** is created (vet, wholesale, gift).
 - A code registered to another account, or already in progress, is rejected (409).
-- A shipping address is required (FedEx needs it as the return's origin).
+- A shipping address is required on the account (used for printed labels; QR returns don't send it to FedEx).
 
 ## Carriers
 `packages/integrations/src/carrier` — services only see the `Carrier` interface.
 
 | | When used | Notes |
 |---|---|---|
-| `FedExCarrier` | `FEDEX_API_KEY`, `FEDEX_SECRET_KEY`, `FEDEX_ACCOUNT_NUMBER` set | OAuth + Ship API (return labels) + Track API. **Verify against the FedEx sandbox before production.** |
+| `FedExCarrier` | `FEDEX_API_KEY`, `FEDEX_SECRET_KEY`, `FEDEX_ACCOUNT_NUMBER` set | OAuth + **Returns API (label-less QR returns)** + Track API; Ship API printed labels only when the Returns settings are absent (never in production). Verified against the FedEx sandbox. |
 | `TestCarrier` | No FedEx config, **never in Vercel production** | Real scannable QR; tracking simulated from label age: picked up at +10 min, delivered at +30 min. Mailers are tagged "Test carrier" in admin. |
 
 ### FedEx setup
-1. Create a project at **developer.fedex.com** with Ship + Track APIs; copy the sandbox API key/secret and test account number.
-2. Set in Vercel on **both** projects, choosing the environment when you add each variable: the **Test** key/secret/account for **Preview + Development**, the **Production** key/secret/real account for **Production** (secret marked Sensitive). Variables: `FEDEX_API_KEY`, `FEDEX_SECRET_KEY`, `FEDEX_ACCOUNT_NUMBER`. The FedEx server follows the Vercel environment automatically (Production → `apis.fedex.com`, everything else → sandbox). Optional: `FEDEX_RETURN_SERVICE_TYPE` (default `FEDEX_GROUND` — **confirm the right service for biological samples with the lab**). The FedEx sandbox test account can't ship Ground, so Preview + Development set it to `FEDEX_2_DAY`. Return labels are billed to our account (`SENDER`); FedEx rejects recipient billing on returns.
-3. **QR codes at the counter** ("label-less returns") need **FedEx Returns Technology** enabled on the account — ask your FedEx account rep. Until then `FEDEX_RETURN_LABEL_MODE=label` (default) produces a printable PDF return label; switch to `qr` once enabled (the QR request mapping is finished then, against the sandbox).
-4. Set the lab's receiving address: `LAB_SHIP_TO_NAME`, `LAB_SHIP_TO_COMPANY`, `LAB_SHIP_TO_PHONE`, `LAB_SHIP_TO_LINE1`, `LAB_SHIP_TO_LINE2`, `LAB_SHIP_TO_CITY`, `LAB_SHIP_TO_REGION`, `LAB_SHIP_TO_POSTAL_CODE`.
+Customers get a **label-less QR return**: the portal shows a QR code of the RMA number (e.g. `PWR0100001`), a FedEx counter scans it and prints the label. This is the FedEx Returns API (`/returns/v1/rma`), the same flow and settings the old PetWealth backend uses in production. FedEx holds the lab's address under a ship-to address id, and PetWealth pays (`shippingCostResponsibility: Retailer`). The customer's home address is not sent.
+
+Set in Vercel on **both** projects, choosing the environment when you add each variable:
+
+| Variable | Production | Preview + Development (sandbox) |
+|---|---|---|
+| `FEDEX_API_KEY`, `FEDEX_SECRET_KEY` | production key / secret (Sensitive) | test key / secret |
+| `FEDEX_ACCOUNT_NUMBER` | real account | test account |
+| `FEDEX_RETAILER_ID` | from the old app | `6067998` |
+| `FEDEX_RETURN_SHIP_TO_ADDRESS_ID` | `TXLAB` | `TXLAB` |
+| `FEDEX_RETURN_SKU` | `7681814_DEFAULT_ITEM` | `6067998_DEFAULT_ITEM` |
+
+- The FedEx server follows the Vercel environment (Production → `apis.fedex.com`, everything else → sandbox).
+- Fixed return details live in code (`RETURNS_DEFAULTS` in `fedex.ts`): service `FDXE`, reason "Diagnostic sample return to laboratory", PetWealth's phone and address.
+- Production refuses to create returns unless all three Returns settings are set.
+- **RMA numbers must not collide with the old app's.** FedEx keeps every RMA the old app created; ours start at `PWR0100000`. A collision fails the mailer with a clear message rather than reusing someone else's return. Retrying our own RMA (e.g. after a timeout) reuses it.
+- Fallback (no Returns settings, never in production): printed PDF label via the Ship API, billed to our account (`SENDER`), service `FEDEX_RETURN_SERVICE_TYPE` (default `FEDEX_GROUND`; the sandbox can't ship Ground), to `LAB_SHIP_TO_*`.
 
 ## Tracking cron
 `GET /api/cron/tracking`, scheduled in `apps/admin/vercel.json` (`*/30 * * * *`). Requires `Authorization: Bearer $CRON_SECRET` — Vercel sends it automatically once `CRON_SECRET` is set. Each shipment is polled at most every 25 minutes; safe to run manually.

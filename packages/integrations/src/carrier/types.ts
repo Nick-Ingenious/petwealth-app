@@ -22,6 +22,8 @@ export interface ReturnShipmentRequest {
   from: Address;
   /** The lab. */
   to: Address;
+  /** The customer's account email — FedEx Returns ties the RMA to it. */
+  customerEmail: string;
   kitCount: number;
   weightLbs: number;
 }
@@ -31,6 +33,8 @@ export type LabelFormat = "qr_png" | "pdf";
 export interface CreatedShipment {
   trackingNumber: string;
   label: { format: LabelFormat; mimeType: string; contentBase64: string };
+  /** The carrier's own id for the return (FedEx Returns rmaId), for support lookups. */
+  carrierReference?: string;
 }
 
 export type TrackStatus = "label_created" | "in_transit" | "out_for_delivery" | "delivered" | "exception" | "unknown";
