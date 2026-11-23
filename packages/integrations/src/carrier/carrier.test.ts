@@ -189,6 +189,18 @@ describe("getCarrier", () => {
     expect(() => getCarrier({ ...keys, FEDEX_RETAILER_ID: "abc", FEDEX_RETURN_SHIP_TO_ADDRESS_ID: "TXLAB", FEDEX_RETURN_SKU: "x" })).toThrow(/must be a number/);
   });
 
+  it("trims stray whitespace from pasted FedEx settings", () => {
+    const c = getCarrier({
+      FEDEX_API_KEY: "\t\nkey123 ",
+      FEDEX_SECRET_KEY: " secret\n",
+      FEDEX_ACCOUNT_NUMBER: "740561073\n",
+      FEDEX_RETURN_SERVICE_TYPE: " FEDEX_2_DAY\n",
+    }) as FedExCarrier;
+    const cfg = (c as unknown as { cfg: { apiKey: string; secretKey: string; accountNumber: string; returnServiceType: string } }).cfg;
+    expect(cfg).toMatchObject({ apiKey: "key123", secretKey: "secret", accountNumber: "740561073", returnServiceType: "FEDEX_2_DAY" });
+    expect(getCarrier({ FEDEX_API_KEY: " \n", FEDEX_SECRET_KEY: "s", FEDEX_ACCOUNT_NUMBER: "1" }).name).toBe("test");
+  });
+
   it("uses the FedEx sandbox except in Vercel production", async () => {
     const keys = { FEDEX_API_KEY: "k", FEDEX_SECRET_KEY: "s", FEDEX_ACCOUNT_NUMBER: "1" };
     const urlFor = async (env: Record<string, string>) => {

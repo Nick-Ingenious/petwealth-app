@@ -17,7 +17,11 @@ export * from "./types";
  */
 export function getCarrier(env: Record<string, string | undefined> = process.env): Carrier {
   const production = env.VERCEL_ENV === "production";
-  const { FEDEX_API_KEY, FEDEX_SECRET_KEY, FEDEX_ACCOUNT_NUMBER } = env;
+  // Trimmed: a key pasted into Vercel with a stray tab or line break fails
+  // FedEx OAuth with a misleading "credentials not valid".
+  const FEDEX_API_KEY = env.FEDEX_API_KEY?.trim();
+  const FEDEX_SECRET_KEY = env.FEDEX_SECRET_KEY?.trim();
+  const FEDEX_ACCOUNT_NUMBER = env.FEDEX_ACCOUNT_NUMBER?.trim();
   if (FEDEX_API_KEY && FEDEX_SECRET_KEY && FEDEX_ACCOUNT_NUMBER) {
     const returns = returnsConfig(env);
     if (production && !returns) {
@@ -31,7 +35,7 @@ export function getCarrier(env: Record<string, string | undefined> = process.env
       // sandbox. Scope the production keys to Production and the test keys to
       // Preview + Development, and the right pair always meets the right server.
       environment: production ? "production" : "sandbox",
-      returnServiceType: env.FEDEX_RETURN_SERVICE_TYPE || "FEDEX_GROUND",
+      returnServiceType: env.FEDEX_RETURN_SERVICE_TYPE?.trim() || "FEDEX_GROUND",
       returns,
     });
   }
