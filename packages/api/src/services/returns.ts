@@ -63,7 +63,7 @@ export async function registerKitsForCustomer(
       with: { addresses: { orderBy: [desc(s.addresses.isDefault), desc(s.addresses.createdAt)] } },
     });
     if (!customer) throw notFound("Customer");
-    if (!customer.addresses.length) throw invalid("Add a shipping address before registering kits — FedEx needs it for the return label.");
+    if (!customer.addresses.length) throw invalid("Add a shipping address before registering kits. FedEx needs it for the return label.");
 
     const petIds = [...new Set(requested.map((r) => r.petId))];
     const pets = await tx.select().from(s.pets).where(and(inArray(s.pets.id, petIds), eq(s.pets.customerId, customerId)));

@@ -47,7 +47,7 @@ const PRODUCT_BLURB: Record<TestType, (pet: string) => string> = {
   fecal: (pet) => `Screen your ${pet}'s gut for parasites, bacteria and other pathogens with at-home testing.`,
   respiratory: (pet) => `Screen for respiratory pathogens that may be affecting your ${pet}'s health with at-home testing.`,
   oral: (pet) => `Check your ${pet}'s mouth for bacteria linked to dental disease with at-home testing.`,
-  complete: (pet) => `Fecal, respiratory and oral panels for your ${pet} — three kits in one bundle.`,
+  complete: (pet) => `Fecal, respiratory and oral panels for your ${pet}: three kits in one bundle.`,
 };
 const productBlurb = (p: { species: Species; testType: TestType }) => PRODUCT_BLURB[p.testType](SPECIES_LABEL[p.species].noun.toLowerCase());
 

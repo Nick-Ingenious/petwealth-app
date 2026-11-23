@@ -64,7 +64,7 @@ export async function completeOnboarding(ctx: CustomerContext, input: unknown) {
   const data = onboardingSchema.parse(input);
   return getDb().transaction(async (tx) => {
     const hasAddress = (await tx.$count(s.addresses, eq(s.addresses.customerId, ctx.customerId))) > 0;
-    if (!hasAddress && !data.address) throw invalid("Add your shipping address — we need it for your FedEx return code.");
+    if (!hasAddress && !data.address) throw invalid("Add your shipping address. We need it for your FedEx return code.");
     const [customer] = await tx
       .update(s.customers)
       .set({

@@ -27,7 +27,7 @@ function Step({ n, title, state, children }: { n?: number; title: string; state:
         {state === "done" ? <Check className="size-4" /> : null}
       </span>
       <h2 className={cn("text-lg font-semibold uppercase tracking-wide", state === "done" ? "text-lime-700" : state === "current" ? "text-amber-600" : "text-zinc-400")}>
-        {n ? `Step ${n} — ` : ""}
+        {n ? `Step ${n}: ` : ""}
         {title}
       </h2>
       <div className="mt-2">{children}</div>
@@ -118,7 +118,7 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
               <p className="text-lg text-zinc-600">
                 {mailer.labelFormat === "pdf"
                   ? "Print this label and attach it to your sealed mailer, then drop it at any FedEx location."
-                  : "Take your sealed mailer to any FedEx counter. Show them this code and they'll print the label and stick it on for you — you don't need a printer."}
+                  : "Take your sealed mailer to any FedEx counter. Show them this code and they'll print the label and stick it on for you, so you don't need a printer."}
               </p>
               {mailer.labelFormat === "qr_png" ? (
                 <div className="rounded-3xl border-2 border-dashed border-lilac-300 bg-white p-6 text-center">
@@ -141,7 +141,7 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
               <div className="flex gap-3 rounded-3xl bg-sun-50 p-5 text-lg text-zinc-700">
                 <Lightbulb className="mt-1 size-6 shrink-0 text-amber-500" aria-hidden />
                 <p>
-                  Drop it off within {DROP_OFF_WITHIN_DAYS} days of collecting. Drop boxes can&apos;t print labels — hand it over at the counter.
+                  Drop it off within {DROP_OFF_WITHIN_DAYS} days of collecting. Drop boxes can&apos;t print labels, so hand it over at the counter.
                 </p>
               </div>
             </div>

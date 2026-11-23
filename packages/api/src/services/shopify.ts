@@ -203,7 +203,7 @@ export async function ingestShopifyOrder(order: NormalizedOrder, opts: ShopifyIn
         entityId: row!.id,
         type: "order.needs_attention",
         ...SHOPIFY_ACTOR,
-        payload: { reason: "Unrecognised products — no kits created for these items", items: unmapped },
+        payload: { reason: "Unrecognised products, so no kits were created for these items", items: unmapped },
       });
     }
     return { status: "created", orderId: row!.id, orderNumber: row!.number!, kitCount, unmapped };
@@ -242,7 +242,7 @@ export async function cancelShopifyOrder(order: NormalizedOrder): Promise<Intake
       payload: {
         reason: order.cancelReason,
         cancelledKits,
-        ...(alreadyShipped.length ? { alreadyShipped, action: "Kits already shipped — arrange return/refund manually" } : {}),
+        ...(alreadyShipped.length ? { alreadyShipped, action: "Kits already shipped. Arrange the return or refund manually" } : {}),
       },
     });
     return { status: "cancelled", orderId: existing.id, cancelledKits, alreadyShipped };

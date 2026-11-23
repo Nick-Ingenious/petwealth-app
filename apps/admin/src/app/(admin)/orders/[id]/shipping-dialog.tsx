@@ -95,7 +95,7 @@ export function ShippingDialog({
                 <Info className="mt-0.5 size-4 shrink-0 text-sky-600" aria-hidden />
                 {returns.length
                   ? "Return mailers are created and tracked automatically from the customer's kit registration."
-                  : "Return tracking will be available once the customer registers their kits — the FedEx return code is created then."}
+                  : "Return tracking will be available once the customer registers their kits, since the FedEx return code is created then."}
               </p>
             </section>
 

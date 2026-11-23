@@ -15,7 +15,7 @@ interface Props {
 export function OnboardingForm({ initial, needsAddress, next }: Props) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(onboardingAction, null);
   const err = (k: string) => (state && !state.ok ? state.fieldErrors?.[k]?.[0] : undefined);
-  const addrErr = state && !state.ok && state.fieldErrors?.address ? "Check your address — use a 2-letter state and 5-digit ZIP." : undefined;
+  const addrErr = state && !state.ok && state.fieldErrors?.address ? "Check your address: use a 2-letter state and 5-digit ZIP." : undefined;
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="next" value={next} />

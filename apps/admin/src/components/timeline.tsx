@@ -56,7 +56,7 @@ export function Timeline({ events, kitCodes }: { events: EventRow[]; kitCodes?: 
             </p>
             <p className="text-xs text-ink-subtle">
               {formatDateTime(e.occurredAt)} · {e.actorLabel ?? e.actorType}
-              {typeof e.payload.note === "string" ? ` — “${e.payload.note}”` : ""}
+              {typeof e.payload.note === "string" ? `: “${e.payload.note}”` : ""}
             </p>
           </li>
         );
