@@ -1,9 +1,9 @@
 /**
  * FedEx REST API adapter (developer.fedex.com): OAuth, Ship (return labels), Track.
  *
- * Status: built against FedEx's documented request/response shapes and unit
- * tested with recorded-style fixtures; must be verified against the FedEx
- * sandbox once API credentials exist (see docs/SHIPPING.md).
+ * Verified against the FedEx sandbox (OAuth, return label PDF, Track) on
+ * 2026-11-23. The sandbox test account is not enabled for FedEx Ground, so
+ * previews use FEDEX_RETURN_SERVICE_TYPE=FEDEX_2_DAY.
  *
  * Return codes: the customer app shows a QR code that FedEx counters scan to
  * print the label. QR ("label-less") returns require FedEx Returns Technology
@@ -128,7 +128,9 @@ export class FedExCarrier implements Carrier {
         serviceType: this.cfg.returnServiceType,
         packagingType: "YOUR_PACKAGING",
         pickupType: "DROPOFF_AT_FEDEX_LOCATION",
-        shippingChargesPayment: { paymentType: "RECIPIENT", payor: { responsibleParty: { accountNumber: { value: this.cfg.accountNumber } } } },
+        // FedEx only allows SENDER (or THIRD_PARTY) billing on return shipments;
+        // "sender" here means our account, which pays for the return.
+        shippingChargesPayment: { paymentType: "SENDER", payor: { responsibleParty: { accountNumber: { value: this.cfg.accountNumber } } } },
         shipmentSpecialServices: {
           specialServiceTypes: ["RETURN_SHIPMENT"],
           returnShipmentDetail: { returnType: "PRINT_RETURN_LABEL", rma: { reason: `PetWealth sample return ${req.rmaNumber}` } },
