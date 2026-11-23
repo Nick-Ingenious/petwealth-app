@@ -41,6 +41,8 @@ describe("FedExCarrier", () => {
     expect(ship.requestedShipment.shipper.address.postalCode).toBe("94110"); // customer ships back
     expect(ship.requestedShipment.recipients[0].contact.companyName).toBe("PetWealth Lab");
     expect(ship.requestedShipment.shipmentSpecialServices.specialServiceTypes).toEqual(["RETURN_SHIPMENT"]);
+    // FedEx rejects RECIPIENT billing on returns (verified in the sandbox); our account pays as SENDER.
+    expect(ship.requestedShipment.shippingChargesPayment.paymentType).toBe("SENDER");
     expect(ship.requestedShipment.requestedPackageLineItems[0].customerReferences[0].value).toBe("PWR0100001");
     expect(ship.requestedShipment.shipper.contact.phoneNumber).toBe("4155550142");
   });
