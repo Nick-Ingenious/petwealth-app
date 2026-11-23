@@ -34,7 +34,7 @@ Customer scans tube QR ─► picks pet ─► "Register N kits"
 
 ### FedEx setup
 1. Create a project at **developer.fedex.com** with Ship + Track APIs; copy the sandbox API key/secret and test account number.
-2. Set in Vercel: `FEDEX_API_KEY`, `FEDEX_SECRET_KEY`, `FEDEX_ACCOUNT_NUMBER`, `FEDEX_ENV=sandbox` (later `production`), `FEDEX_RETURN_SERVICE_TYPE` (default `FEDEX_GROUND` — **confirm the right service for biological samples with the lab**).
+2. Set in Vercel on **both** projects, choosing the environment when you add each variable: the **Test** key/secret/account for **Preview + Development**, the **Production** key/secret/real account for **Production** (secret marked Sensitive). Variables: `FEDEX_API_KEY`, `FEDEX_SECRET_KEY`, `FEDEX_ACCOUNT_NUMBER`. The FedEx server follows the Vercel environment automatically (Production → `apis.fedex.com`, everything else → sandbox). Optional: `FEDEX_RETURN_SERVICE_TYPE` (default `FEDEX_GROUND` — **confirm the right service for biological samples with the lab**).
 3. **QR codes at the counter** ("label-less returns") need **FedEx Returns Technology** enabled on the account — ask your FedEx account rep. Until then `FEDEX_RETURN_LABEL_MODE=label` (default) produces a printable PDF return label; switch to `qr` once enabled (the QR request mapping is finished then, against the sandbox).
 4. Set the lab's receiving address: `LAB_SHIP_TO_NAME`, `LAB_SHIP_TO_COMPANY`, `LAB_SHIP_TO_PHONE`, `LAB_SHIP_TO_LINE1`, `LAB_SHIP_TO_LINE2`, `LAB_SHIP_TO_CITY`, `LAB_SHIP_TO_REGION`, `LAB_SHIP_TO_POSTAL_CODE`.
 

@@ -117,6 +117,25 @@ describe("TestCarrier", () => {
 describe("getCarrier", () => {
   it("uses FedEx when configured, the test carrier in dev, and refuses fakes in production", () => {
     expect(getCarrier({ FEDEX_API_KEY: "k", FEDEX_SECRET_KEY: "s", FEDEX_ACCOUNT_NUMBER: "1" }).name).toBe("fedex");
+  });
+
+  it("uses the FedEx sandbox except in Vercel production", async () => {
+    const keys = { FEDEX_API_KEY: "k", FEDEX_SECRET_KEY: "s", FEDEX_ACCOUNT_NUMBER: "1" };
+    const urlFor = async (env: Record<string, string>) => {
+      const seen: string[] = [];
+      const fetch = (async (url: string) => {
+        seen.push(new URL(url).host);
+        return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }), { status: 200 });
+      }) as unknown as typeof globalThis.fetch;
+      const c = getCarrier(env) as FedExCarrier;
+      (c as unknown as { http: typeof globalThis.fetch }).http = fetch;
+      await c.track([]).catch(() => undefined);
+      await (c as unknown as { accessToken: () => Promise<string> }).accessToken();
+      return seen[0];
+    };
+    expect(await urlFor({ ...keys, VERCEL_ENV: "production" })).toBe("apis.fedex.com");
+    expect(await urlFor({ ...keys, VERCEL_ENV: "preview" })).toBe("apis-sandbox.fedex.com");
+    expect(await urlFor(keys)).toBe("apis-sandbox.fedex.com");
     expect(getCarrier({}).name).toBe("test");
     expect(() => getCarrier({ VERCEL_ENV: "production" })).toThrow(/FedEx is not configured/);
   });
