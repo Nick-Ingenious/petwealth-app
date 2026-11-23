@@ -1,8 +1,10 @@
 import type { Address } from "@petwealth/integrations/carrier";
 
 /**
- * Where return mailers go. Set LAB_SHIP_TO_* in Vercel; a placeholder is used
- * outside production so development works without it.
+ * The lab's address for printed return labels (the Ship API fallback). QR
+ * returns don't use it — FedEx holds the lab's address under
+ * FEDEX_RETURN_SHIP_TO_ADDRESS_ID — and production always uses QR returns, so
+ * a placeholder stands in when LAB_SHIP_TO_* isn't set.
  */
 export function labAddress(env: Record<string, string | undefined> = process.env): Address {
   const a: Address = {
@@ -17,6 +19,5 @@ export function labAddress(env: Record<string, string | undefined> = process.env
     country: env.LAB_SHIP_TO_COUNTRY ?? "US",
   };
   if (a.line1 && a.city && a.postalCode && a.phone) return a;
-  if (env.VERCEL_ENV === "production") throw new Error("Lab return address is not configured (LAB_SHIP_TO_*).");
   return { ...a, phone: "5555550100", line1: "100 Example Lab Way", city: "Austin", region: "TX", postalCode: "78701" };
 }

@@ -188,6 +188,7 @@ export async function createReturnLabel(
         country: address.country,
       },
       to: labAddress(),
+      customerEmail: customer.email,
       kitCount: shipment.kits.length,
       weightLbs: 1,
     });
@@ -205,7 +206,7 @@ export async function createReturnLabel(
         entityId: shipmentId,
         type: "shipment.label_created",
         ...carrierActor(carrier),
-        payload: { trackingNumber: result.trackingNumber, format: result.label.format },
+        payload: { trackingNumber: result.trackingNumber, format: result.label.format, carrierReference: result.carrierReference ?? null },
       });
       // "Your FedEx code is ready" email, sent by the notification worker (2c).
       await tx.insert(s.notifications).values({ customerId: customer.id, channel: "email", template: "return_label_ready", status: "queued" });
