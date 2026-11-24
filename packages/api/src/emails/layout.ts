@@ -1,5 +1,4 @@
-import type { EmailAttachment } from "@petwealth/integrations/email";
-import { LOGO_PNG_BASE64 } from "./logo";
+import { portalUrl } from "../portal-url";
 
 /**
  * Shared shell for transactional email, following the brand email guide: stone
@@ -10,13 +9,13 @@ import { LOGO_PNG_BASE64 } from "./logo";
 export const FONT = "'Plus Jakarta Sans','Helvetica Neue',Helvetica,Arial,sans-serif";
 const INK = "#1b2330";
 
-/** Every email shows the logo inline (cid:petwealth-logo) rather than hotlinking it. */
-export const LOGO_ATTACHMENT: EmailAttachment = {
-  filename: "petwealth.png",
-  contentBase64: LOGO_PNG_BASE64,
-  contentType: "image/png",
-  contentId: "petwealth-logo",
-};
+/**
+ * The logo is hosted on the portal rather than attached, so mail apps don't
+ * show a paperclip on every email. 312x50 PNG, shown at half size for retina.
+ */
+export function logoUrl(): string {
+  return `${portalUrl()}/brand/email-logo.png`;
+}
 
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -63,7 +62,7 @@ export function layout({ preheader, eyebrow, headline, body }: { preheader: stri
   <tr><td align="center" style="padding:32px 16px">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
       <tr><td style="padding:0 0 20px">
-        <img src="cid:petwealth-logo" width="156" height="25" alt="Petwealth" style="display:block;width:156px;height:25px;border:0">
+        <img src="${logoUrl()}" width="156" height="25" alt="Petwealth" style="display:block;width:156px;height:25px;border:0">
       </td></tr>
       <tr><td style="background:#ffffff;border-radius:24px;padding:32px 28px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">

@@ -92,7 +92,7 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
     expect(mail.sent).toHaveLength(1);
     expect(mail.sent[0]).toMatchObject({ to: customer.email, subject: "Your FedEx code is ready", idempotencyKey: `notification-${email[0]!.id}` });
     expect(mail.sent[0]!.text).toContain("Felix's Fecal test and Rex's Respiratory test");
-    expect(mail.sent[0]!.attachments?.map((a) => a.contentId)).toEqual(["petwealth-logo", "fedex-code"]);
+    expect(mail.sent[0]!.attachments?.map((a) => a.contentId)).toEqual(["fedex-code"]);
   });
 
   it("keeps the email queued through a Resend outage and fails it on a bad request", async () => {

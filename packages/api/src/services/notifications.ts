@@ -16,8 +16,8 @@ import { KIT_STATUS_EMAILS, type KitStatus, type NotificationTemplate } from "@p
 import { and, asc, desc, eq, getDb, inArray, schema as s } from "@petwealth/db";
 import { EmailError, getEmailSender, type EmailMessage, type EmailSender } from "@petwealth/integrations/email";
 import { kitStatusEmail } from "../emails/kit-status";
-import { LOGO_ATTACHMENT } from "../emails/layout";
 import { returnLabelReadyEmail } from "../emails/return-label-ready";
+import { portalUrl } from "../portal-url";
 
 /** Give up on temporary failures after a day; the email would be stale by then. */
 const RETRY_FOR_MS = 24 * 60 * 60 * 1000;
@@ -34,9 +34,7 @@ function isStatusEmail(template: string): template is NotificationTemplate {
 type NotificationRow = typeof s.notifications.$inferSelect;
 type Rendered = { message: Omit<EmailMessage, "to" | "idempotencyKey"> } | { skip: string };
 
-export function portalUrl(env: Record<string, string | undefined> = process.env): string {
-  return (env.PORTAL_URL?.trim() || "https://app.petwealth.com").replace(/\/+$/, "");
-}
+export { portalUrl };
 
 async function returnShipmentIdForKit(kitId: string): Promise<string | undefined> {
   const [link] = await getDb()
@@ -72,7 +70,7 @@ async function renderStatusEmail(template: NotificationTemplate, rows: Notificat
     kitUrl: `${portalUrl()}/kits/${encodeURIComponent(kits[0]!.code!)}`,
     trackingNumber,
   });
-  return { message: { subject: email.subject, html: email.html, text: email.text, attachments: [LOGO_ATTACHMENT] } };
+  return { message: { subject: email.subject, html: email.html, text: email.text } };
 }
 
 async function render(rows: NotificationRow[]): Promise<Rendered> {
@@ -114,7 +112,7 @@ async function render(rows: NotificationRow[]): Promise<Rendered> {
       },
       kitUrl: first ? `${portalUrl()}/kits/${encodeURIComponent(first.code)}` : portalUrl(),
     });
-    return { message: { subject: email.subject, html: email.html, text: email.text, attachments: [LOGO_ATTACHMENT, ...email.attachments] } };
+    return { message: { subject: email.subject, html: email.html, text: email.text, attachments: email.attachments } };
   }
   return { skip: `No email template for "${row.template}"` };
 }
