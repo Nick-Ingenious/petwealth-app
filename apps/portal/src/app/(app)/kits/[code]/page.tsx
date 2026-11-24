@@ -1,15 +1,48 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Check, Lightbulb, TestTube2 } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Lightbulb, TestTube2 } from "lucide-react";
 import { AppError, getMyKit, type JourneyStep } from "@petwealth/api";
 import { DROP_OFF_WITHIN_DAYS, PANEL_LABEL } from "@petwealth/domain";
 import { cn } from "@petwealth/ui";
 import { Header, KitImage, Screen } from "@/components/brand";
 import { requireCustomer } from "@/lib/auth";
 import { CollectedButton } from "./collected-button";
-import { COLLECT } from "./instructions";
+import { COLLECT, PACK, type InstructionRow } from "./instructions";
 
 export const metadata = { title: "Your kit" };
+
+/** Page range in the printed booklet that ships in every kit (same pagination in all three). */
+function BookletRef({ pages }: { pages: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-sm font-medium text-zinc-500">
+      <BookOpen className="size-3.5" aria-hidden /> Booklet {pages}
+    </span>
+  );
+}
+
+/** Booklet illustration beside its instruction, with the booklet's sub-heading above when it has one. */
+function Rows({ rows }: { rows: InstructionRow[] }) {
+  return (
+    <div className="space-y-4">
+      {rows.map((r) => (
+        <div key={r.image} className="space-y-2">
+          {r.subhead ? <p className="text-sm font-semibold uppercase tracking-wide text-ink">{r.subhead}</p> : null}
+          <div className="flex items-start gap-4">
+            <Image
+              src={`/ifu/${r.image}.webp`}
+              alt={r.alt}
+              width={112}
+              height={112}
+              className="size-24 shrink-0 rounded-2xl border-2 border-zinc-200 bg-white object-cover sm:size-28"
+            />
+            <div className="min-w-0 flex-1 text-base leading-snug text-zinc-800">{r.text}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 
 function Step({ n, title, state, children }: { n?: number; title: string; state: "done" | "current" | "todo"; children: React.ReactNode }) {
@@ -80,13 +113,13 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
 
         <Step n={2} title="Collect sample" state={state("collect")}>
           {state("collect") === "current" ? (
-            <div className="space-y-4 rounded-3xl border border-zinc-200 bg-white p-5">
-              <h3 className="text-2xl font-semibold">{guide.title}</h3>
-              <p className="text-lg text-zinc-500">{guide.intro}</p>
-              <ol className="list-decimal space-y-2 pl-5 text-lg">
-                {guide.steps.map((s) => <li key={s}>{s}</li>)}
-              </ol>
-              <p className="text-sm text-zinc-500">Your printed booklet has illustrated, step-by-step instructions.</p>
+            <div className="space-y-5 rounded-3xl border border-zinc-200 bg-white p-4 sm:p-5">
+              <div className="space-y-2">
+                <h3 className="text-2xl font-semibold">{guide.title}</h3>
+                <BookletRef pages="p.12-15" />
+              </div>
+              {guide.intro ? <p className="text-lg text-zinc-500">{guide.intro}</p> : null}
+              <Rows rows={guide.rows} />
               <CollectedButton code={kit.code} petName={petName} />
             </div>
           ) : (
@@ -96,11 +129,15 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
 
         <Step n={3} title="Pack the mailer" state={shipState}>
           {kit.journey.step === "ship" ? (
-            <ul className="list-disc space-y-1 pl-5 text-lg">
-              <li>Secure the cap tightly, then seal the clear specimen bag.</li>
-              <li>Place the sealed specimen bag inside, then seal the <strong>white bubble mailer</strong>.</li>
-              {kit.mailerKits.length ? <li>Include your other tubes in the same mailer: {kit.mailerKits.map((k) => `${k.code}${k.petName ? ` (${k.petName})` : ""}`).join(", ")}.</li> : null}
-            </ul>
+            <div className="space-y-4">
+              <BookletRef pages="p.16-18" />
+              <Rows rows={PACK} />
+              {kit.mailerKits.length ? (
+                <p className="text-lg text-zinc-700">
+                  Include your other tubes in the same mailer: {kit.mailerKits.map((k) => `${k.code}${k.petName ? ` (${k.petName})` : ""}`).join(", ")}.
+                </p>
+              ) : null}
+            </div>
           ) : (
             <p className="text-lg text-zinc-500">{shipState === "done" ? "Packed" : "Ready when you are"}</p>
           )}
