@@ -21,11 +21,16 @@ import {
 } from "@petwealth/domain";
 import { and, asc, desc, eq, getDb, inArray, isNull, lt, or, schema as s, sql, type DbOrTx } from "@petwealth/db";
 import { getCarrier, CarrierError, type Carrier, type TrackingUpdate } from "@petwealth/integrations/carrier";
+import type { EmailSender } from "@petwealth/integrations/email";
 import { recordEvent, type AuditActor } from "../audit";
 import { labAddress } from "../config";
 import { actorFields, requirePermission, type StaffContext } from "../context";
 import { conflict, invalid, notFound } from "../errors";
 import { changeKitStatus } from "./kits";
+import { deliverQueuedEmails } from "./notifications";
+
+/** Overrides for tests and staff tools; production uses the configured FedEx and Resend. */
+export type ReturnOptions = { carrier?: Carrier; email?: EmailSender };
 
 /** Kit statuses in which a tube can still be registered by a customer. */
 const REGISTRABLE: readonly KitStatus[] = ["ordered", "label_created", "shipped", "delivered"];
@@ -53,7 +58,7 @@ export async function registerKitsForCustomer(
   customerId: string,
   input: unknown,
   actor: AuditActor,
-  opts: { carrier?: Carrier } = {},
+  opts: ReturnOptions = {},
 ): Promise<RegistrationResult> {
   const { kits: requested } = kitRegistrationSchema.parse(input);
 
@@ -135,12 +140,12 @@ export async function registerKitsForCustomer(
     return { shipmentId: shipment!.id, rmaNumber, kits: linked.map(({ code, petName }) => ({ code, petName })) };
   });
 
-  const label = await createReturnLabel(created.shipmentId, opts.carrier);
+  const label = await createReturnLabel(created.shipmentId, opts.carrier, opts.email);
   return { ...created, label };
 }
 
 /** Staff registering kits on a customer's behalf (phone support, testing). */
-export async function registerKitsAsStaff(ctx: StaffContext, customerId: string, input: unknown, opts: { carrier?: Carrier } = {}) {
+export async function registerKitsAsStaff(ctx: StaffContext, customerId: string, input: unknown, opts: ReturnOptions = {}) {
   requirePermission(ctx, "kits.manage");
   return registerKitsForCustomer(customerId, input, actorFields(ctx), opts);
 }
@@ -155,7 +160,9 @@ export async function registerKitsAsStaff(ctx: StaffContext, customerId: string,
 export async function createReturnLabel(
   shipmentId: string,
   carrierOverride?: Carrier,
+  emailOverride?: EmailSender,
 ): Promise<{ status: "label_created" | "failed"; error?: string }> {
+  let notificationId: string;
   const db = getDb();
   const shipment = await db.query.shipments.findFirst({
     where: eq(s.shipments.id, shipmentId),
@@ -192,7 +199,7 @@ export async function createReturnLabel(
       kitCount: shipment.kits.length,
       weightLbs: 1,
     });
-    await db.transaction(async (tx) => {
+    notificationId = await db.transaction(async (tx) => {
       await tx
         .update(s.shipments)
         .set({ carrier: carrier.name, trackingNumber: result.trackingNumber, labelFormat: result.label.format, status: "label_created", error: null })
@@ -208,15 +215,27 @@ export async function createReturnLabel(
         ...carrierActor(carrier),
         payload: { trackingNumber: result.trackingNumber, format: result.label.format, carrierReference: result.carrierReference ?? null },
       });
-      // "Your FedEx code is ready" email, sent by the notification worker (2c).
-      await tx.insert(s.notifications).values({ customerId: customer.id, channel: "email", template: "return_label_ready", status: "queued" });
+      // "Your FedEx code is ready" email. kitId ties it to this mailer.
+      const [notification] = await tx
+        .insert(s.notifications)
+        .values({ customerId: customer.id, kitId: shipment.kits[0]?.kitId ?? null, channel: "email", template: "return_label_ready", status: "queued" })
+        .returning({ id: s.notifications.id });
+      return notification!.id;
     });
-    return { status: "label_created" };
   } catch (e) {
     const message = e instanceof CarrierError ? e.message : `Unexpected error creating label: ${e instanceof Error ? e.message : String(e)}`;
     if (!(e instanceof CarrierError)) console.error("[returns] label creation failed", e);
     return markLabelFailed(shipmentId, message, carrierActor(carrier));
   }
+
+  // Send it now. Email trouble never undoes the label: the row stays queued
+  // (or is marked failed with the reason) and the cron retries what it can.
+  try {
+    await deliverQueuedEmails({ ids: [notificationId], sender: emailOverride });
+  } catch (e) {
+    console.error("[returns] could not send the FedEx code email", e);
+  }
+  return { status: "label_created" };
 }
 
 async function markLabelFailed(shipmentId: string, error: string, actor: AuditActor) {
@@ -227,9 +246,9 @@ async function markLabelFailed(shipmentId: string, error: string, actor: AuditAc
   return { status: "failed" as const, error };
 }
 
-export async function retryReturnLabel(ctx: StaffContext, shipmentId: string, opts: { carrier?: Carrier } = {}) {
+export async function retryReturnLabel(ctx: StaffContext, shipmentId: string, opts: ReturnOptions = {}) {
   requirePermission(ctx, "kits.manage");
-  return createReturnLabel(shipmentId, opts.carrier);
+  return createReturnLabel(shipmentId, opts.carrier, opts.email);
 }
 
 /** The stored QR/label image, for staff (customers get their own scoped route in the portal). */

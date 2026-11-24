@@ -9,6 +9,8 @@ import { ALL_PERMISSIONS, formatKitCode } from "@petwealth/domain";
 import { and, eq, getDb, inArray, schema as s } from "@petwealth/db";
 import { CarrierError, TestCarrier, type Carrier } from "@petwealth/integrations/carrier";
 import type { StaffContext } from "./context";
+import { EmailError, TestEmailSender, type EmailSender } from "@petwealth/integrations/email";
+import { deliverQueuedEmails } from "./services/notifications";
 import { refreshTracking, registerKitsAsStaff, retryReturnLabel } from "./services/returns";
 
 const run = process.env.RUN_DB_TESTS === "1";
@@ -60,7 +62,13 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
     const { customer, cat, dog, orderedKit } = await makeCustomer();
     const catCode = code("cat", "fecal");
     const dogCode = code("dog", "respiratory");
-    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: catCode.toLowerCase(), petId: cat.id }, { kitCode: dogCode, petId: dog.id }] }, { carrier: new TestCarrier() });
+    const mail = new TestEmailSender();
+    const res = await registerKitsAsStaff(
+      staff,
+      customer.id,
+      { kits: [{ kitCode: catCode.toLowerCase(), petId: cat.id }, { kitCode: dogCode, petId: dog.id }] },
+      { carrier: new TestCarrier(), email: mail },
+    );
 
     expect(res.label).toEqual({ status: "label_created" });
     expect(res.rmaNumber).toMatch(/^PWR\d{7}$/);
@@ -79,6 +87,24 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
 
     const email = await db.select().from(s.notifications).where(and(eq(s.notifications.customerId, customer.id), eq(s.notifications.template, "return_label_ready")));
     expect(email).toHaveLength(1);
+    expect(email[0]).toMatchObject({ status: "sent", providerMessageId: expect.stringMatching(/^test_/), error: null });
+    expect(mail.sent).toHaveLength(1);
+    expect(mail.sent[0]).toMatchObject({ to: customer.email, subject: "Your FedEx code is ready", idempotencyKey: `notification-${email[0]!.id}` });
+    expect(mail.sent[0]!.text).toContain("Felix's Fecal test and Rex's Respiratory test");
+    expect(mail.sent[0]!.attachments?.map((a) => a.contentId)).toEqual(["petwealth-logo", "fedex-code"]);
+  });
+
+  it("keeps the email queued through a Resend outage and fails it on a bad request", async () => {
+    const { customer, cat } = await makeCustomer();
+    const outage: EmailSender = { name: "test", send: async () => Promise.reject(new EmailError("Resend rejected the email: busy", true)) };
+    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: code("cat", "oral"), petId: cat.id }] }, { carrier: new TestCarrier(), email: outage });
+    expect(res.label).toEqual({ status: "label_created" }); // email trouble never undoes the label
+    const [row] = await getDb().select().from(s.notifications).where(eq(s.notifications.customerId, customer.id));
+    expect(row).toMatchObject({ status: "queued", error: "Resend rejected the email: busy" });
+
+    const rejected: EmailSender = { name: "test", send: async () => Promise.reject(new EmailError("Resend rejected the email: domain not verified", false)) };
+    expect(await deliverQueuedEmails({ ids: [row!.id], sender: rejected })).toMatchObject({ failed: 1 });
+    expect((await getDb().query.notifications.findFirst({ where: eq(s.notifications.id, row!.id) }))?.status).toBe("failed");
   });
 
   it("rejects the wrong species, duplicate registration and other customers' kits", async () => {
