@@ -31,6 +31,46 @@ export function KitImage({ species, panel, className, priority }: { species: Spe
   );
 }
 
+/**
+ * Sign-in hero: the dog render from the old app with sample result cards. The source image has
+ * placeholder cards baked in, so live cards sit exactly over them (positions in % of the
+ * 915×664 image, text sized in container units so everything scales together). Counts follow
+ * the brand facts: Dog Fecal tests 28 pathogens.
+ */
+export function HeroDog() {
+  const card = "absolute rounded-[2.4cqw] bg-[#EEEBE7] text-[#24163F] shadow-[0_0.4cqw_1.6cqw_rgb(36_22_63/0.08)]";
+  const pill = "rounded-full bg-[#CAB3FF] px-[1.3cqw] py-[0.3cqw] text-[1.9cqw] font-medium leading-none";
+  return (
+    <div className="@container relative w-full max-w-sm" aria-hidden>
+      <Image src="/brand/hero-dog.webp" alt="" width={915} height={664} priority sizes="(max-width: 448px) 90vw, 400px" className="h-auto w-full" />
+      <div className={card} style={{ left: "13.3%", top: "11.8%", width: "22.3%", height: "19.2%" }}>
+        <div className="flex h-full flex-col justify-between p-[2.4cqw]">
+          <span className="text-[3.2cqw] font-medium leading-none">Stewart</span>
+          <span className="text-[1.8cqw] leading-none">Weimaraner</span>
+        </div>
+      </div>
+      <div className={card} style={{ left: "0%", top: "65.4%", width: "36.6%", height: "19.2%" }}>
+        <div className="flex h-full flex-col justify-between p-[2.2cqw]">
+          <span className="flex items-start justify-between">
+            <span className="text-[3cqw] font-medium leading-none">0 of 28</span>
+            <span className={pill}>Clear</span>
+          </span>
+          <span className="flex items-end justify-between">
+            <span className="text-[3.2cqw] font-medium leading-none">Fecal</span>
+            <span className="text-[1.7cqw] leading-none">Pathogens found</span>
+          </span>
+        </div>
+      </div>
+      <div className={card} style={{ left: "69.2%", top: "51%", width: "30.8%", height: "19.2%" }}>
+        <div className="flex h-full flex-col justify-between p-[2.2cqw]">
+          <span className="self-end"><span className={pill}>Clear</span></span>
+          <span className="text-[3.2cqw] font-medium leading-none">Respiratory</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** App header: wordmark + the "Code" shortcut to register kits. */
 export function Header({ showCode = true }: { showCode?: boolean }) {
   return (
