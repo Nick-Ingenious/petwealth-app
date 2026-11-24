@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
+import { authLocalization } from "@/components/auth-appearance";
 import { CLERK_ENABLED } from "@/lib/env";
 import "./globals.css";
 
@@ -17,5 +18,5 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="min-h-dvh bg-canvas text-ink antialiased">{children}</body>
     </html>
   );
-  return CLERK_ENABLED ? <ClerkProvider>{body}</ClerkProvider> : body;
+  return CLERK_ENABLED ? <ClerkProvider localization={authLocalization}>{body}</ClerkProvider> : body;
 }
