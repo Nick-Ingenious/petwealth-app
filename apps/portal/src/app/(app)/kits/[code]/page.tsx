@@ -11,7 +11,6 @@ import { COLLECT } from "./instructions";
 
 export const metadata = { title: "Your kit" };
 
-const maskEmail = (e: string) => e.replace(/^(.)[^@]*(@.*)$/, "$1••••$2");
 
 function Step({ n, title, state, children }: { n?: number; title: string; state: "done" | "current" | "todo"; children: React.ReactNode }) {
   return (
@@ -109,7 +108,7 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
 
         <Step n={4} title="Ship to the lab" state={shipState}>
           {!mailer || mailer.status === "pending" || mailer.status === "failed" ? (
-            <p className="text-lg text-zinc-600">We&apos;re preparing your FedEx code and will email it to you shortly.</p>
+            <p className="text-lg text-zinc-600">We&apos;re preparing your FedEx code. It will appear here shortly.</p>
           ) : state("ship") === "done" ? (
             <p className="text-lg text-zinc-500">On its way to the lab with FedEx · {mailer.rmaNumber}</p>
           ) : (
@@ -130,14 +129,9 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
               <a href={labelUrl!} target="_blank" rel="noreferrer" className="flex h-14 items-center justify-center rounded-full bg-lilac-300 text-lg font-semibold">
                 {mailer.labelFormat === "pdf" ? "Open label to print" : "Show code at the counter"}
               </a>
-              <div className="grid grid-cols-2 gap-3">
-                <a href={`${labelUrl}?download=1`} className="flex h-14 items-center justify-center rounded-full border border-zinc-200 bg-white text-lg font-semibold">
-                  {mailer.labelFormat === "pdf" ? "Download" : "Save to Photos"}
-                </a>
-                <span className="flex h-14 items-center justify-center rounded-full border border-zinc-200 bg-white px-3 text-center text-sm text-zinc-600">
-                  Emailed to {maskEmail(kit.email)}
-                </span>
-              </div>
+              <a href={`${labelUrl}?download=1`} className="flex h-14 items-center justify-center rounded-full border border-zinc-200 bg-white text-lg font-semibold">
+                {mailer.labelFormat === "pdf" ? "Download" : "Save to Photos"}
+              </a>
               <div className="flex gap-3 rounded-3xl bg-sun-50 p-5 text-lg text-zinc-700">
                 <Lightbulb className="mt-1 size-6 shrink-0 text-amber-500" aria-hidden />
                 <p>
@@ -153,7 +147,7 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
           <p className="mt-1 text-lg text-zinc-600">
             {kit.status === "completed"
               ? "Your report is available in your dashboard."
-              : `${petName}'s report will be sent via email and available in the dashboard.`}
+              : `${petName}'s report will appear in your dashboard.`}
           </p>
           {kit.journey.step === "results" && kit.status !== "completed" ? <p className="mt-2 text-zinc-500">Current status: {kit.statusLabel}</p> : null}
         </Step>
