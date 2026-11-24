@@ -13,6 +13,7 @@ import { RetryLabel } from "./retry-label";
 
 const TEMPLATE_LABEL: Record<string, string> = {
   kit_shipped: "Kit shipped",
+  kit_in_transit: "Kit on its way to the lab",
   kit_received: "Kit received at lab",
   results_ready: "Results ready",
   return_label_ready: "FedEx return code",

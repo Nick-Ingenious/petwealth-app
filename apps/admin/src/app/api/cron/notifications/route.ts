@@ -4,9 +4,9 @@ import { deliverQueuedEmails } from "@petwealth/api";
 import { getEmailSender } from "@petwealth/integrations/email";
 
 /**
- * Vercel Cron (every 10 min, see vercel.json): send emails still queued, e.g.
- * ones that hit a Resend outage or rate limit when first tried. Most emails go
- * out straight away; this is the safety net.
+ * Vercel Cron (every 10 min, see vercel.json): send queued emails. This is
+ * where kit status emails (on the way, at the lab, results ready) go out, and
+ * where emails that hit a Resend outage or rate limit are retried.
  *
  * Vercel sends `Authorization: Bearer $CRON_SECRET`; anything else is rejected.
  */
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   }
   try {
     const result = await deliverQueuedEmails({ sender, limit: 100 });
-    console.info(`[cron:notifications] sent=${result.sent} retrying=${result.retrying} failed=${result.failed} skipped=${result.skipped}`);
+    console.info(`[cron:notifications] sent=${result.sent} waiting=${result.waiting} retrying=${result.retrying} failed=${result.failed} skipped=${result.skipped}`);
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     console.error("[cron:notifications] failed", e);

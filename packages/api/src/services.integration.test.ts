@@ -42,7 +42,7 @@ describe.skipIf(!run)("services (db)", () => {
     for (const order of page.items) expect(order.kits.some((k) => k.status === "in_transit")).toBe(true);
   });
 
-  it("receives a kit, audits it, and queues the SMS", async () => {
+  it("receives a kit, audits it, and queues the email", async () => {
     // Any kit the lab can receive (earlier runs may have used up the in-transit ones).
     const [kit] = await getDb()
       .select()
@@ -57,7 +57,7 @@ describe.skipIf(!run)("services (db)", () => {
     const detail = await getKit(superAdmin, kit!.code!);
     expect(detail.timeline[0]).toMatchObject({ type: "kit.status_changed", payload: { from, to: "received_at_lab" } });
     const notes = await getDb().select().from(s.notifications).where(eq(s.notifications.kitId, kit!.id));
-    expect(notes.some((n) => n.template === "kit_received")).toBe(true);
+    expect(notes.some((n) => n.template === "kit_received" && n.channel === "email" && n.status === "queued")).toBe(true);
 
     await expect(receiveKit(labTech, { kitCode: kit!.code! })).rejects.toMatchObject({ status: 409 });
   });
