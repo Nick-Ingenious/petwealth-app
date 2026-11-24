@@ -3,10 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Third-party adapters (Shopify, later FedEx/Twilio/lab). Pure parsing + verification; no database access.",
+  "description": "Third-party adapters (Shopify, FedEx, Resend email; later Twilio/lab). Pure parsing + verification; no database access.",
   "exports": {
     "./shopify": "./src/shopify/index.ts",
-    "./carrier": "./src/carrier/index.ts"
+    "./carrier": "./src/carrier/index.ts",
+    "./email": "./src/email/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

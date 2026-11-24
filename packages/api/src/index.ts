@@ -6,6 +6,7 @@ export * from "./pagination";
 export * from "./services/customers";
 export * from "./services/dashboard";
 export * from "./services/kits";
+export * from "./services/notifications";
 export * from "./services/orders";
 export * from "./services/pets";
 export * from "./services/portal";

@@ -15,8 +15,7 @@ import { recordEvent } from "../audit";
 import { customerActor, type CustomerContext } from "../context";
 import { conflict, invalid, notFound } from "../errors";
 import { changeKitStatus } from "./kits";
-import { registerKitsForCustomer } from "./returns";
-import type { Carrier } from "@petwealth/integrations/carrier";
+import { registerKitsForCustomer, type ReturnOptions } from "./returns";
 
 // ── Identity ───────────────────────────────────────────────────────────
 
@@ -121,7 +120,7 @@ export async function checkKitCode(ctx: CustomerContext, raw: string) {
   return { ok: true as const, code: parsed.code, species: parsed.species, panel: parsed.panel };
 }
 
-export async function registerMyKits(ctx: CustomerContext, input: unknown, opts: { carrier?: Carrier } = {}) {
+export async function registerMyKits(ctx: CustomerContext, input: unknown, opts: ReturnOptions = {}) {
   return registerKitsForCustomer(ctx.customerId, input, customerActor(ctx), opts);
 }
 
