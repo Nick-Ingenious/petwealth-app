@@ -31,7 +31,7 @@ describe("returnLabelReadyEmail", () => {
     expect(e.subject).toBe("Your FedEx code is ready");
     expect(e.attachments).toEqual([{ filename: "fedex-code-PWR0100000.png", contentBase64: "QR", contentType: "image/png", contentId: "fedex-code" }]);
     expect(e.html).toContain('src="cid:fedex-code"');
-    expect(e.html).toContain("cid:petwealth-logo");
+    expect(e.html).toContain('src="https://app.petwealth.com/brand/email-logo.png"');
     expect(e.html).toContain("Hi Test, this code sends Biscuit&#39;s Fecal and Oral tests back to our lab in one mailer.");
     expect(e.html).toContain('href="https://app.petwealth.com/kits/CFEC-903-101"');
     expect(e.text).toContain("RMA Number: PWR0100000");
