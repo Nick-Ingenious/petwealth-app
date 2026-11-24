@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState } from "react";
 import { ArrowRight } from "lucide-react";
 import { Choice, PrimaryButton, TextField } from "@/components/fields";
@@ -45,8 +46,16 @@ export function OnboardingForm({ initial, needsAddress, next }: Props) {
           defaultValue={initial.customerType || undefined}
           error={err("customerType")}
           options={[
-            { value: "pet_parent", label: "Pet Parent" },
-            { value: "pet_professional", label: "Pet Professional" },
+            {
+              value: "pet_parent",
+              label: "Pet Parent",
+              image: <Image src="/onboarding/pet-parent.webp" alt="" width={400} height={319} className="h-20 w-auto" />,
+            },
+            {
+              value: "pet_professional",
+              label: "Pet Professional",
+              image: <Image src="/onboarding/pet-professional.webp" alt="" width={300} height={393} className="h-20 w-auto" />,
+            },
           ]}
         />
       </div>
