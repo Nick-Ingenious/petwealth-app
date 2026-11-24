@@ -1,7 +1,7 @@
 /**
  * Kit services. `changeKitStatus` is the ONLY function in the codebase that
  * updates `kits.status` — it validates the transition, stamps milestones,
- * writes the audit event, and queues the customer notification atomically.
+ * writes the audit event, and queues the customer email atomically.
  */
 import {
   KIT_STATUS_META,
@@ -140,19 +140,11 @@ export async function changeKitStatus(
     payload: { from: kit.status, to, ...payload },
   });
 
+  // Queue the customer email. The notifications cron sends it a few minutes
+  // later, combining kits that changed together (e.g. one mailer) into one email.
   const template = notificationForStatus(to);
   if (template && kit.customerId) {
-    const customer = await tx.query.customers.findFirst({ where: eq(s.customers.id, kit.customerId) });
-    const canText = customer?.smsOptIn && customer.phone;
-    await tx.insert(s.notifications).values({
-      customerId: kit.customerId,
-      kitId: kit.id,
-      channel: "sms",
-      template,
-      // Delivery worker (M2) sends `queued` rows via Twilio; record why others are skipped.
-      status: canText ? "queued" : "skipped",
-      error: canText ? null : "Customer has not opted in to SMS or has no phone number",
-    });
+    await tx.insert(s.notifications).values({ customerId: kit.customerId, kitId: kit.id, channel: "email", template });
   }
   return updated;
 }

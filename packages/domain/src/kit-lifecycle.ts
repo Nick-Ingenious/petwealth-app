@@ -109,13 +109,18 @@ export function assertKitTransition(from: KitStatus, to: KitStatus): void {
   if (!canTransitionKit(from, to)) throw new KitTransitionError(from, to);
 }
 
-/** Customer-facing notification triggered by entering a status, if any. */
-export type NotificationTemplate = "kit_shipped" | "kit_received" | "results_ready";
+/**
+ * Customer email sent when a kit enters a status, if any. Matches what the old
+ * app emailed customers; it never emailed when the kit
+ * shipped out, so `shipped` has none.
+ */
+export const KIT_STATUS_EMAILS = ["kit_in_transit", "kit_received", "results_ready"] as const;
+export type NotificationTemplate = (typeof KIT_STATUS_EMAILS)[number];
 
 export function notificationForStatus(status: KitStatus): NotificationTemplate | null {
   switch (status) {
-    case "shipped":
-      return "kit_shipped";
+    case "in_transit":
+      return "kit_in_transit";
     case "received_at_lab":
       return "kit_received";
     case "completed":

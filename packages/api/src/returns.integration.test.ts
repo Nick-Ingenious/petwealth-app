@@ -11,6 +11,7 @@ import { CarrierError, TestCarrier, type Carrier } from "@petwealth/integrations
 import type { StaffContext } from "./context";
 import { EmailError, TestEmailSender, type EmailSender } from "@petwealth/integrations/email";
 import { deliverQueuedEmails } from "./services/notifications";
+import { receiveKit, transitionKit } from "./services/kits";
 import { refreshTracking, registerKitsAsStaff, retryReturnLabel } from "./services/returns";
 
 const run = process.env.RUN_DB_TESTS === "1";
@@ -178,5 +179,56 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
     expect(sh2).toMatchObject({ status: "delivered" });
     const kits2 = await db.select().from(s.kits).where(inArray(s.kits.id, kitIds));
     expect(kits2.every((k) => k.status === "in_transit")).toBe(true); // lab scan does "received"
+  });
+  it("emails once per mailer as kits travel, reach the lab and get results", async () => {
+    const { customer, cat, dog } = await makeCustomer();
+    let now = Date.now();
+    const carrier = new TestCarrier(() => now);
+    const catCode = code("cat", "oral");
+    const dogCode = code("dog", "oral");
+    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: catCode, petId: cat.id }, { kitCode: dogCode, petId: dog.id }] }, { carrier, email: new TestEmailSender() });
+    const db = getDb();
+    const queued = async (template: string) =>
+      db.select().from(s.notifications).where(and(eq(s.notifications.customerId, customer.id), eq(s.notifications.template, template)));
+    const later = () => Date.now() + 3 * 60_000; // past the settle window
+
+    now += 11 * 60_000; // picked up: both kits go In Transit together
+    await refreshTracking({ carrier, now: new Date(now) });
+    const transit = await queued("kit_in_transit");
+    expect(transit.map((n) => [n.channel, n.status])).toEqual([["email", "queued"], ["email", "queued"]]);
+
+    const mail = new TestEmailSender();
+    const ids = transit.map((n) => n.id);
+    expect(await deliverQueuedEmails({ ids, sender: mail })).toMatchObject({ waiting: 2, sent: 0 }); // still settling
+    expect(await deliverQueuedEmails({ ids, sender: mail, now: later })).toMatchObject({ sent: 2 });
+    expect(mail.sent).toHaveLength(1); // one email for the mailer
+    const shipment = await db.query.shipments.findFirst({ where: eq(s.shipments.id, res.shipmentId) });
+    expect(mail.sent[0]).toMatchObject({ to: customer.email, subject: "Your samples are on the way to our lab", idempotencyKey: expect.stringMatching(/^notifications-/) });
+    expect(mail.sent[0]!.text).toMatch(/the mailer with (Felix's Oral test and Rex's Oral test|Rex's Oral test and Felix's Oral test)\./);
+    expect(mail.sent[0]!.text).toContain(`FedEx tracking number: ${shipment!.trackingNumber}`);
+    const sentRows = await queued("kit_in_transit");
+    expect(new Set(sentRows.map((n) => `${n.status}:${n.providerMessageId}`)).size).toBe(1);
+
+    await receiveKit(staff, { kitCode: catCode });
+    const received = await queued("kit_received");
+    expect(await deliverQueuedEmails({ ids: received.map((n) => n.id), sender: mail, now: later })).toMatchObject({ sent: 1 });
+    expect(mail.sent[1]).toMatchObject({ subject: "Felix's sample is at our lab" });
+    expect(mail.sent[1]!.text).toContain("We'll email you when Felix's results are ready.");
+
+    await transitionKit(staff, { kitCode: catCode, to: "processing" });
+    await transitionKit(staff, { kitCode: catCode, to: "completed" });
+    const ready = await queued("results_ready");
+    expect(await deliverQueuedEmails({ ids: ready.map((n) => n.id), sender: mail, now: later })).toMatchObject({ sent: 1 });
+    expect(mail.sent[2]).toMatchObject({ subject: "Felix's results are ready" });
+    expect(mail.sent[2]!.html).toContain(`/kits/${catCode}`);
+
+    // Results pulled back for a rerun before the email went out: no email.
+    await transitionKit(staff, { kitCode: catCode, to: "rerun" });
+    await transitionKit(staff, { kitCode: catCode, to: "processing" });
+    await transitionKit(staff, { kitCode: catCode, to: "completed" });
+    await transitionKit(staff, { kitCode: catCode, to: "rerun" });
+    const again = (await queued("results_ready")).filter((n) => n.status === "queued");
+    expect(await deliverQueuedEmails({ ids: again.map((n) => n.id), sender: mail, now: later })).toMatchObject({ skipped: 1, sent: 0 });
+    expect(mail.sent).toHaveLength(3);
   });
 });

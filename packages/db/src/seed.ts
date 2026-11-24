@@ -327,24 +327,22 @@ async function main() {
           await db.insert(s.shipmentKits).values({ shipmentId: sh!.id, kitId: kit!.id });
         }
 
-        if (customer.smsOptIn && customer.phone) {
-          const notes = steps.flatMap((st, i) => {
-            const template = notificationForStatus(st);
-            return template ? [{ template, at: times[i]! }] : [];
-          });
-          if (notes.length) {
-            await db.insert(s.notifications).values(
-              notes.map((n) => ({
-                customerId: customer.id,
-                kitId: kit!.id,
-                channel: "sms" as const,
-                template: n.template,
-                status: "delivered" as const,
-                sentAt: n.at,
-                createdAt: n.at,
-              })),
-            );
-          }
+        const notes = steps.flatMap((st, i) => {
+          const template = notificationForStatus(st);
+          return template ? [{ template, at: times[i]! }] : [];
+        });
+        if (notes.length) {
+          await db.insert(s.notifications).values(
+            notes.map((n) => ({
+              customerId: customer.id,
+              kitId: kit!.id,
+              channel: "email" as const,
+              template: n.template,
+              status: "sent" as const,
+              sentAt: n.at,
+              createdAt: n.at,
+            })),
+          );
         }
 
         if (status === "completed" || status === "rerun") {

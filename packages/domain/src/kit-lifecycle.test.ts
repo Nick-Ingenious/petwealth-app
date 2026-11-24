@@ -74,7 +74,8 @@ describe("kit lifecycle", () => {
   });
 
   it("maps customer notifications", () => {
-    expect(notificationForStatus("shipped")).toBe("kit_shipped");
+    expect(notificationForStatus("in_transit")).toBe("kit_in_transit");
+    expect(notificationForStatus("shipped")).toBeNull();
     expect(notificationForStatus("received_at_lab")).toBe("kit_received");
     expect(notificationForStatus("completed")).toBe("results_ready");
     expect(notificationForStatus("processing")).toBeNull();
