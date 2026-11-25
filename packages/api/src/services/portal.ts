@@ -231,6 +231,53 @@ export async function getMyPetPhoto(ctx: CustomerContext, petId: string) {
   return { mimeType: photo.mimeType, content: Buffer.from(photo.contentBase64, "base64") };
 }
 
+/**
+ * Delete account, as the old app did. Deleted: name, phone, email, pets and
+ * their photos, and the login. Kept: kits and their lab results (no longer
+ * tied to a name or pet), orders and the addresses they shipped to, for the
+ * team's records. The customer row stays, scrubbed, so orders still add up.
+ * The caller deletes the Clerk user after this succeeds.
+ */
+export async function deleteMyAccount(ctx: CustomerContext, input: { confirm: unknown }) {
+  if (input.confirm !== "DELETE") throw invalid("Type DELETE to confirm.");
+  return getDb().transaction(async (tx) => {
+    const [customer] = await tx.select().from(s.customers).where(eq(s.customers.id, ctx.customerId)).for("update");
+    if (!customer || customer.deletedAt) throw notFound("Account");
+    const pets = await tx.select({ id: s.pets.id }).from(s.pets).where(eq(s.pets.customerId, customer.id));
+    // Deleting pets unlinks their kits (pet_id set null) and removes photos (cascade).
+    if (pets.length) await tx.delete(s.pets).where(eq(s.pets.customerId, customer.id));
+    await tx
+      .update(s.notifications)
+      .set({ status: "skipped", error: "Account deleted" })
+      .where(and(eq(s.notifications.customerId, customer.id), eq(s.notifications.status, "queued")));
+    await tx
+      .update(s.customers)
+      .set({
+        email: `deleted+${customer.id}@deleted.invalid`,
+        firstName: null,
+        lastName: null,
+        phone: null,
+        smsOptIn: false,
+        clerkUserId: null,
+        // A future Shopify purchase starts a fresh account instead of landing here.
+        shopifyCustomerId: null,
+        status: "disabled",
+        deletedAt: new Date(),
+      })
+      .where(eq(s.customers.id, customer.id));
+    await recordEvent(tx, {
+      entityType: "customer",
+      entityId: customer.id,
+      type: "customer.deleted",
+      actorType: "customer",
+      actorId: customer.id,
+      actorLabel: "customer (deleted)",
+      payload: { petsDeleted: pets.length },
+    });
+    return { clerkUserId: customer.clerkUserId, petsDeleted: pets.length };
+  });
+}
+
 // ── Kits ───────────────────────────────────────────────────────────────
 
 /** "Kit #1 ✓" check while typing/scanning: is this code usable by this customer? No side effects. */
