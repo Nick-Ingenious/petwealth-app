@@ -187,11 +187,20 @@ export async function getClientCredentialsToken(
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "client_credentials", client_id: opts.clientId, client_secret: opts.clientSecret }),
   });
-  const json = (await res.json().catch(() => ({}))) as { access_token?: string; error?: string; error_description?: string };
+  const raw = await res.text();
+  let json: { access_token?: string; error?: string; error_description?: string; errors?: unknown } = {};
+  try {
+    json = JSON.parse(raw) as typeof json;
+  } catch {
+    // Shopify sometimes answers with an HTML error page.
+  }
   if (!res.ok || !json.access_token) {
-    throw new ShopifyPayloadError(
-      `Shopify didn't issue an Admin API token (${json.error_description ?? json.error ?? res.status}). Check the app's client ID and secret, and that it's installed on the store.`,
-    );
+    // Shopify's error text holds no secrets; show it so the cause is visible.
+    const detail =
+      json.error_description ??
+      json.error ??
+      (json.errors ? JSON.stringify(json.errors) : raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200));
+    throw new ShopifyPayloadError(`Shopify didn't issue an Admin API token (HTTP ${res.status}: ${detail || "no details"}).`);
   }
   return json.access_token;
 }
