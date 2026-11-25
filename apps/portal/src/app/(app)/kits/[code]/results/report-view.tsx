@@ -77,16 +77,10 @@ function VetLink({ children, className }: { children: React.ReactNode; className
 // ── Pathogen card ────────────────────────────────────────────────────────
 
 function CtTile({ cq }: { cq: number | null }) {
-  const value = cq ?? 40;
-  // 15 (high load) fills the bar, 40 (none) leaves it empty.
-  const pct = Math.min(100, Math.max(0, ((40 - value) / 25) * 100));
   return (
     <div className="rounded-2xl bg-[#F9F8F5] p-4">
       <Eyebrow>CT value</Eyebrow>
-      <p className="mt-1 font-display text-2xl text-[#020617]">{Number(value.toFixed(1))}</p>
-      <div className="mt-3 h-1.5 w-full rounded-full bg-[#E7DFD4]" aria-hidden>
-        <div className="h-1.5 rounded-full bg-[#F59E0B]" style={{ width: `${Math.max(pct, 4)}%` }} />
-      </div>
+      <p className="mt-1 font-display text-2xl text-[#020617]">{Number((cq ?? 40).toFixed(1))}</p>
       <p className="mt-2 text-xs text-[#4A5565]">15 = high · 40 = none</p>
     </div>
   );
@@ -228,8 +222,8 @@ function EmergencySigns({ panel }: { panel: CustomerLabReport["panel"] }) {
 
 function KitJourney({ report }: { report: CustomerLabReport }) {
   const j = report.journey;
-  const steps: { title: string; meta: string | null }[] = [
-    { title: "Activated Kit", meta: [fmt(j.activatedAt), report.kitCode].filter(Boolean).join(" · ") },
+  const steps: { title: string; detail?: string; meta: string | null }[] = [
+    { title: "Activated Kit", detail: "Your kit is registered!", meta: `Kit ID: ${report.kitCode}` },
     { title: "Sample collected", meta: [fmt(j.collectedAt), SPECIMEN[report.panel]].filter(Boolean).join(" · ") },
     { title: "Your shipping QR code is ready", meta: "FedEx has your mailer" },
     { title: "In Transit", meta: fmt(j.inTransitAt) },
@@ -247,7 +241,8 @@ function KitJourney({ report }: { report: CustomerLabReport }) {
               <Check className="size-3.5" aria-hidden />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-[#19242B]">{s.title}</p>
+              <p className={cn("font-semibold text-[#19242B]", s.detail ? "text-xs text-[#6F6A64]" : "text-sm")}>{s.title}</p>
+              {s.detail ? <p className="text-lg font-semibold text-[#19242B]">{s.detail}</p> : null}
               {s.meta ? <p className="text-xs text-[#6F6A64]">{s.meta}</p> : null}
             </div>
           </li>
