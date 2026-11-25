@@ -313,6 +313,16 @@ export const shipments = pgTable(
   ],
 );
 
+/** A pet's profile photo, stored small (resized in the browser) and served only to the pet's owner. */
+export const petPhotos = pgTable("pet_photos", {
+  petId: uuid()
+    .primaryKey()
+    .references(() => pets.id, { onDelete: "cascade" }),
+  mimeType: text().notNull(),
+  contentBase64: text().notNull(),
+  ...timestamps,
+});
+
 /** Which kits travel in which shipment (a kit can have an outbound and a return, or a replacement). */
 export const shipmentKits = pgTable(
   "shipment_kits",

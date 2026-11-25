@@ -4,7 +4,7 @@ import { AppError, type CustomerContext } from "@petwealth/api";
 import { getCustomer } from "./auth";
 
 export type ActionResult<T = undefined> =
-  | { ok: true; data: T }
+  | { ok: true; data: T; message?: string }
   | { ok: false; error: string; fieldErrors?: Record<string, string[] | undefined> };
 
 /** Run a customer server action: authenticate, then map errors to friendly messages. */

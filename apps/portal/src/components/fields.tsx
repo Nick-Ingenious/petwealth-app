@@ -5,10 +5,19 @@ import { cn } from "@petwealth/ui";
 export const fieldClass =
   "h-14 w-full rounded-2xl border border-zinc-200 bg-white px-5 text-base text-ink placeholder:text-zinc-400 focus:border-violet-400 focus:outline-none focus:ring-4 focus:ring-lilac-100";
 
-export function TextField({ label, error, className, ...props }: ComponentProps<"input"> & { label: string; error?: string | undefined }) {
+export function TextField({
+  label,
+  error,
+  className,
+  showLabel,
+  ...props
+}: ComponentProps<"input"> & { label: string; error?: string | undefined; /** Visible label above the field (edit screens, where fields are pre-filled). */ showLabel?: boolean }) {
   return (
     <label className="block">
-      <span className="sr-only">{label}</span>
+      <span className={showLabel ? "mb-1 block text-sm text-zinc-500" : "sr-only"}>
+        {label}
+        {showLabel && props.required ? <span className="text-red-500"> *</span> : null}
+      </span>
       <input aria-label={label} placeholder={`${label}${props.required ? "*" : ""}`} className={cn(fieldClass, error && "border-red-400", className)} {...props} />
       {error ? <span className="mt-1 block text-sm text-red-600">{error}</span> : null}
     </label>

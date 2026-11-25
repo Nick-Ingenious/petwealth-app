@@ -49,6 +49,23 @@ export const petCreateSchema = z.object({
 });
 export type PetCreate = z.infer<typeof petCreateSchema>;
 
+/** My Information: name, phone, text alerts and shipping address. Email belongs to the login. */
+export const profileUpdateSchema = z.object({
+  firstName: name("First name"),
+  lastName: name("Last name"),
+  phone: phoneSchema,
+  smsOptIn: checkbox,
+  address: addressSchema,
+});
+export type ProfileUpdate = z.infer<typeof profileUpdateSchema>;
+
+/** Pet photos arrive already resized in the browser (about 600px JPEG). */
+export const PET_PHOTO_MAX_BYTES = 750_000;
+export const petPhotoSchema = z
+  .string()
+  .regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/, "Choose a JPEG, PNG or WebP photo")
+  .refine((v) => (v.length - v.indexOf(",") - 1) * 0.75 <= PET_PHOTO_MAX_BYTES, "That photo is too large. Try a smaller one.");
+
 /** Common breeds for the picker; free text is still accepted ("Other"). */
 export const BREEDS: Record<Species, string[]> = {
   dog: [
