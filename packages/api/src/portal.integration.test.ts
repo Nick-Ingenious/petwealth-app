@@ -7,6 +7,7 @@ import { TestCarrier } from "@petwealth/integrations/carrier";
 import {
   checkKitCode,
   completeOnboarding,
+  deleteMyAccount,
   createPet,
   deleteMyPet,
   getMyPet,
@@ -151,5 +152,39 @@ describe.skipIf(!run)("customer portal (db)", () => {
     const extra = await createPet(a.ctx, { ...felix, name: "Oops" });
     await deleteMyPet(a.ctx, extra.id);
     await expect(getMyPet(a.ctx, extra.id)).rejects.toMatchObject({ status: 404 });
+  });
+  it("deletes an account: personal details and pets go, kits, results, orders and addresses stay", async () => {
+    const { ctx, pet } = await onboarded();
+    const db = getDb();
+    await setMyPetPhoto(ctx, pet.id, "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
+    const before = await getProfile(ctx);
+    const [order] = await db.insert(s.orders).values({ customerId: ctx.customerId, source: "manual", subtotalCents: 9900, totalCents: 9900, placedAt: new Date(), shippingAddressId: before.addresses[0]!.id }).returning();
+    const [kit] = await db
+      .insert(s.kits)
+      .values({ code: formatKitCode("cat", "fecal", 954, randomInt(1000)), orderId: order!.id, customerId: ctx.customerId, petId: pet.id, species: "cat", panel: "fecal", status: "completed" })
+      .returning();
+    await db.insert(s.labResults).values({ kitId: kit!.id, status: "released", healthStatus: "clean", raw: {}, reportedAt: new Date(), releasedAt: new Date() });
+    await db.insert(s.notifications).values({ customerId: ctx.customerId, kitId: kit!.id, channel: "email", template: "results_ready" });
+
+    await expect(deleteMyAccount(ctx, { confirm: "delete" })).rejects.toThrow(/Type DELETE/);
+    const out = await deleteMyAccount(ctx, { confirm: "DELETE" });
+    expect(out.petsDeleted).toBe(1);
+
+    const [c] = await db.select().from(s.customers).where(eq(s.customers.id, ctx.customerId));
+    expect(c).toMatchObject({ firstName: null, lastName: null, phone: null, clerkUserId: null, shopifyCustomerId: null, smsOptIn: false, status: "disabled" });
+    expect(c!.email).toMatch(/^deleted\+.*@deleted\.invalid$/);
+    expect(c!.deletedAt).toBeInstanceOf(Date);
+    expect(await db.select().from(s.pets).where(eq(s.pets.customerId, ctx.customerId))).toHaveLength(0);
+    expect(await db.select().from(s.petPhotos).where(eq(s.petPhotos.petId, pet.id))).toHaveLength(0);
+    // Kit, result, order and address stay; the kit no longer points at a pet.
+    const [k] = await db.select().from(s.kits).where(eq(s.kits.id, kit!.id));
+    expect(k).toMatchObject({ petId: null, status: "completed", orderId: order!.id });
+    expect(await db.select().from(s.labResults).where(eq(s.labResults.kitId, kit!.id))).toHaveLength(1);
+    expect(await db.select().from(s.addresses).where(eq(s.addresses.customerId, ctx.customerId))).toHaveLength(1);
+    const [n] = await db.select().from(s.notifications).where(eq(s.notifications.kitId, kit!.id));
+    expect(n!.status).toBe("skipped");
+    // The old login can't get back in, and the same email starts fresh.
+    expect(await resolveCustomerContext({ clerkUserId: "whatever", email: before.email })).not.toMatchObject({ customerId: ctx.customerId });
+    await expect(deleteMyAccount(ctx, { confirm: "DELETE" })).rejects.toMatchObject({ status: 404 });
   });
 });

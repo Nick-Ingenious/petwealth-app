@@ -64,6 +64,13 @@
       "when": 1795644413583,
       "tag": "0008_pet_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795646047275,
+      "tag": "0009_customer_deleted_at",
+      "breakpoints": true
     }
   ]
 }

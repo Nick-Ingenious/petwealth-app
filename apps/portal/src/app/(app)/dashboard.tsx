@@ -158,6 +158,9 @@ function Drawer({ name, onClose, clerk }: { name: string | null; onClose: () => 
             <SignOut />
           </div>
         ) : null}
+        <Link href="/delete-account" className="mt-4 text-center text-sm font-medium text-[#BE123C]" onClick={onClose}>
+          Delete account
+        </Link>
       </div>
     </div>
   );

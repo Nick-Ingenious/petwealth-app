@@ -131,6 +131,8 @@ export const customers = pgTable(
     phone: text(),
     smsOptIn: boolean().notNull().default(false),
     status: customerStatusEnum().notNull().default("active"),
+    /** Set when the customer deleted their account: personal details are wiped, orders and kit records kept. */
+    deletedAt: timestamp({ withTimezone: true }),
     /** Chosen at portal onboarding; null for customers who haven't signed in yet (e.g. Shopify-only). */
     customerType: customerTypeEnum(),
     onboardedAt: timestamp({ withTimezone: true }),
