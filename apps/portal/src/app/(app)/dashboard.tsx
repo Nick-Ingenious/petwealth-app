@@ -140,11 +140,14 @@ function Drawer({ name, onClose, clerk }: { name: string | null; onClose: () => 
         </span>
         <p className="mt-3 text-center text-xl font-semibold text-[#19242B]">{name ?? "Your account"}</p>
         <nav className="mt-6 space-y-3">
+          <Link href="/my-information" className={row} onClick={onClose}>
+            My Information <ChevronRight className="size-5" aria-hidden />
+          </Link>
+          <Link href="/pets" className={row} onClick={onClose}>
+            Manage Pets <ChevronRight className="size-5" aria-hidden />
+          </Link>
           <Link href="/register" className={row} onClick={onClose}>
             Register New Test Kit <ChevronRight className="size-5" aria-hidden />
-          </Link>
-          <Link href="/pets/new?returnTo=%2F" className={row} onClick={onClose}>
-            Add a pet <ChevronRight className="size-5" aria-hidden />
           </Link>
           <a href={`mailto:${SUPPORT_EMAIL}`} className={row}>
             Help center <ChevronRight className="size-5" aria-hidden />

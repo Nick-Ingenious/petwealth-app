@@ -8,6 +8,8 @@ import {
   onboardingSchema,
   parseKitCode,
   petCreateSchema,
+  petPhotoSchema,
+  profileUpdateSchema,
   type KitStatus,
 } from "@petwealth/domain";
 import { and, desc, eq, getDb, inArray, schema as s, sql } from "@petwealth/db";
@@ -92,7 +94,17 @@ export async function completeOnboarding(ctx: CustomerContext, input: unknown) {
 }
 
 export async function listMyPets(ctx: CustomerContext) {
-  return getDb().query.pets.findMany({ where: eq(s.pets.customerId, ctx.customerId), orderBy: desc(s.pets.createdAt) });
+  const db = getDb();
+  const pets = await db.query.pets.findMany({ where: eq(s.pets.customerId, ctx.customerId), orderBy: desc(s.pets.createdAt) });
+  const counts = pets.length
+    ? await db
+        .select({ petId: s.kits.petId, n: sql<number>`count(*)`.mapWith(Number) })
+        .from(s.kits)
+        .where(inArray(s.kits.petId, pets.map((p) => p.id)))
+        .groupBy(s.kits.petId)
+    : [];
+  const byPet = new Map(counts.map((c) => [c.petId, c.n]));
+  return pets.map((p) => ({ ...p, kitCount: byPet.get(p.id) ?? 0 }));
 }
 
 export async function createPet(ctx: CustomerContext, input: unknown) {
@@ -102,6 +114,121 @@ export async function createPet(ctx: CustomerContext, input: unknown) {
     await recordEvent(tx, { entityType: "pet", entityId: pet!.id, type: "pet.created", ...customerActor(ctx), payload: { species: data.species } });
     return pet!;
   });
+}
+
+/** My Information: name, phone, text alerts and the default shipping address. */
+export async function updateMyProfile(ctx: CustomerContext, input: unknown) {
+  const data = profileUpdateSchema.parse(input);
+  return getDb().transaction(async (tx) => {
+    const [customer] = await tx
+      .update(s.customers)
+      .set({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone.startsWith("+") ? data.phone : `+1${data.phone.slice(-10)}`,
+        smsOptIn: data.smsOptIn,
+      })
+      .where(eq(s.customers.id, ctx.customerId))
+      .returning();
+    const current = await tx.query.addresses.findFirst({
+      where: and(eq(s.addresses.customerId, ctx.customerId), eq(s.addresses.isDefault, true)),
+    });
+    const a = data.address;
+    const same =
+      current &&
+      current.line1 === a.line1 &&
+      (current.line2 ?? null) === a.line2 &&
+      current.city === a.city &&
+      current.region === a.region &&
+      current.postalCode === a.postalCode;
+    // Keep old addresses (past orders and mailers point at them); add a new default instead.
+    if (!same) {
+      await tx.update(s.addresses).set({ isDefault: false }).where(eq(s.addresses.customerId, ctx.customerId));
+      await tx.insert(s.addresses).values({ customerId: ctx.customerId, ...a, isDefault: true });
+    }
+    await recordEvent(tx, {
+      entityType: "customer",
+      entityId: ctx.customerId,
+      type: "customer.profile_updated",
+      ...customerActor(ctx),
+      payload: { addressChanged: !same, smsOptIn: data.smsOptIn },
+    });
+    return customer!;
+  });
+}
+
+async function myPet(ctx: CustomerContext, petId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(petId)) throw notFound("Pet");
+  const pet = await getDb().query.pets.findFirst({ where: and(eq(s.pets.id, petId), eq(s.pets.customerId, ctx.customerId)) });
+  if (!pet) throw notFound("Pet");
+  return pet;
+}
+
+/** One of the customer's pets, with how many kits it has (a pet with kits can't be removed or change species). */
+export async function getMyPet(ctx: CustomerContext, petId: string) {
+  const pet = await myPet(ctx, petId);
+  const kitCount = await getDb().$count(s.kits, eq(s.kits.petId, pet.id));
+  return { ...pet, kitCount };
+}
+
+export async function updateMyPet(ctx: CustomerContext, petId: string, input: unknown) {
+  const pet = await myPet(ctx, petId);
+  const data = petCreateSchema.parse(input);
+  return getDb().transaction(async (tx) => {
+    if (data.species !== pet.species && (await tx.$count(s.kits, eq(s.kits.petId, pet.id)))) {
+      throw invalid(`${pet.name} already has a ${pet.species} kit, so the species can't change.`);
+    }
+    const [updated] = await tx.update(s.pets).set(data).where(eq(s.pets.id, pet.id)).returning();
+    await recordEvent(tx, { entityType: "pet", entityId: pet.id, type: "pet.updated", ...customerActor(ctx), payload: {} });
+    return updated!;
+  });
+}
+
+/** Remove a pet that never had a kit (e.g. added by mistake). */
+export async function deleteMyPet(ctx: CustomerContext, petId: string) {
+  const pet = await myPet(ctx, petId);
+  return getDb().transaction(async (tx) => {
+    if (await tx.$count(s.kits, eq(s.kits.petId, pet.id))) {
+      throw conflict(`${pet.name} has test kits, so the profile is kept with their results.`);
+    }
+    await tx.delete(s.pets).where(eq(s.pets.id, pet.id));
+    await recordEvent(tx, { entityType: "pet", entityId: pet.id, type: "pet.deleted", ...customerActor(ctx), payload: { name: pet.name } });
+  });
+}
+
+/** Save a pet photo (a data URL, already resized in the browser). */
+export async function setMyPetPhoto(ctx: CustomerContext, petId: string, dataUrl: unknown) {
+  const pet = await myPet(ctx, petId);
+  const url = petPhotoSchema.parse(dataUrl);
+  const mimeType = url.slice(5, url.indexOf(";"));
+  const contentBase64 = url.slice(url.indexOf(",") + 1);
+  return getDb().transaction(async (tx) => {
+    await tx
+      .insert(s.petPhotos)
+      .values({ petId: pet.id, mimeType, contentBase64 })
+      .onConflictDoUpdate({ target: s.petPhotos.petId, set: { mimeType, contentBase64, updatedAt: new Date() } });
+    // Version in the URL so browsers pick up a new photo straight away.
+    const photoUrl = `/api/pets/${pet.id}/photo?v=${Date.now().toString(36)}`;
+    await tx.update(s.pets).set({ photoUrl }).where(eq(s.pets.id, pet.id));
+    await recordEvent(tx, { entityType: "pet", entityId: pet.id, type: "pet.photo_updated", ...customerActor(ctx), payload: {} });
+    return { photoUrl };
+  });
+}
+
+export async function removeMyPetPhoto(ctx: CustomerContext, petId: string) {
+  const pet = await myPet(ctx, petId);
+  await getDb().transaction(async (tx) => {
+    await tx.delete(s.petPhotos).where(eq(s.petPhotos.petId, pet.id));
+    await tx.update(s.pets).set({ photoUrl: null }).where(eq(s.pets.id, pet.id));
+  });
+}
+
+/** Photo bytes for the owner only. */
+export async function getMyPetPhoto(ctx: CustomerContext, petId: string) {
+  const pet = await myPet(ctx, petId);
+  const [photo] = await getDb().select().from(s.petPhotos).where(eq(s.petPhotos.petId, pet.id));
+  if (!photo) throw notFound("Photo");
+  return { mimeType: photo.mimeType, content: Buffer.from(photo.contentBase64, "base64") };
 }
 
 // ── Kits ───────────────────────────────────────────────────────────────

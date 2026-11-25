@@ -8,6 +8,15 @@ import {
   checkKitCode,
   completeOnboarding,
   createPet,
+  deleteMyPet,
+  getMyPet,
+  getMyPetPhoto,
+  getProfile,
+  listMyPets,
+  removeMyPetPhoto,
+  setMyPetPhoto,
+  updateMyPet,
+  updateMyProfile,
   getMyKit,
   getMyMailerLabel,
   getPortalHome,
@@ -92,5 +101,55 @@ describe.skipIf(!run)("customer portal (db)", () => {
     expect(await checkKitCode(b.ctx, code)).toMatchObject({ ok: false, message: expect.stringContaining("another account") });
     // and B can't register their kits to A's pet
     await expect(registerMyKits(b.ctx, { kits: [{ kitCode: formatKitCode("cat", "oral", 952, randomInt(1000)), petId: a.pet.id }] })).rejects.toMatchObject({ status: 422 });
+  });
+  it("updates My Information and keeps the old address", async () => {
+    const { ctx } = await onboarded();
+    await updateMyProfile(ctx, {
+      firstName: "Nina",
+      lastName: "Park-Lee",
+      phone: "(512) 555-0199",
+      smsOptIn: false,
+      address: { line1: "9 Oak Ave", line2: "", city: "Denver", region: "co", postalCode: "80202" },
+    });
+    const p = await getProfile(ctx);
+    expect(p).toMatchObject({ lastName: "Park-Lee", phone: "+15125550199", smsOptIn: false });
+    expect(p.addresses.map((a) => [a.city, a.region, a.isDefault])).toEqual([
+      ["Denver", "CO", true],
+      ["Austin", "TX", false],
+    ]);
+    // Saving the same address again doesn't add another row.
+    await updateMyProfile(ctx, { firstName: "Nina", lastName: "Park-Lee", phone: "5125550199", smsOptIn: false, address: { line1: "9 Oak Ave", city: "Denver", region: "CO", postalCode: "80202" } });
+    expect((await getProfile(ctx)).addresses).toHaveLength(2);
+    await expect(updateMyProfile(ctx, { firstName: "", lastName: "x", phone: "1", smsOptIn: false, address: {} })).rejects.toThrow();
+  });
+
+  it("edits, photographs and deletes pets, scoped to the owner", async () => {
+    const a = await onboarded();
+    const b = await onboarded();
+    await updateMyPet(a.ctx, a.pet.id, { ...felix, name: "Felix II", weightLbs: "8.5" });
+    expect(await getMyPet(a.ctx, a.pet.id)).toMatchObject({ name: "Felix II", weightLbs: 8.5, kitCount: 0 });
+    await expect(getMyPet(b.ctx, a.pet.id)).rejects.toMatchObject({ status: 404 });
+    await expect(updateMyPet(b.ctx, a.pet.id, felix)).rejects.toMatchObject({ status: 404 });
+
+    // Photo: stored, served to the owner only, removable.
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+    const { photoUrl } = await setMyPetPhoto(a.ctx, a.pet.id, png);
+    expect(photoUrl).toMatch(new RegExp(`^/api/pets/${a.pet.id}/photo\\?v=`));
+    expect((await getMyPetPhoto(a.ctx, a.pet.id)).mimeType).toBe("image/png");
+    await expect(getMyPetPhoto(b.ctx, a.pet.id)).rejects.toMatchObject({ status: 404 });
+    await expect(setMyPetPhoto(a.ctx, a.pet.id, "data:text/html;base64,PGgxPg==")).rejects.toThrow();
+    await removeMyPetPhoto(a.ctx, a.pet.id);
+    expect((await getMyPet(a.ctx, a.pet.id)).photoUrl).toBeNull();
+
+    // A pet with a kit keeps its species and can't be deleted.
+    await getDb().insert(s.kits).values({ code: formatKitCode("cat", "fecal", 953, randomInt(1000)), customerId: a.ctx.customerId, petId: a.pet.id, species: "cat", panel: "fecal", status: "assigned" });
+    expect((await listMyPets(a.ctx)).find((p) => p.id === a.pet.id)?.kitCount).toBe(1);
+    await expect(updateMyPet(a.ctx, a.pet.id, { ...felix, species: "dog", breed: "Beagle" })).rejects.toThrow(/species can't change/);
+    await expect(deleteMyPet(a.ctx, a.pet.id)).rejects.toMatchObject({ status: 409 });
+
+    // A pet without kits can be deleted.
+    const extra = await createPet(a.ctx, { ...felix, name: "Oops" });
+    await deleteMyPet(a.ctx, extra.id);
+    await expect(getMyPet(a.ctx, extra.id)).rejects.toMatchObject({ status: 404 });
   });
 });

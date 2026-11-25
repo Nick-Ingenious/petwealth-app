@@ -7,7 +7,7 @@ import { runAction, type ActionResult } from "@/lib/action";
 /** Only allow returning to our own register/home pages after adding a pet. */
 function safeReturn(raw: FormDataEntryValue | null, petId: string): string {
   const v = typeof raw === "string" ? raw : "";
-  if (!v.startsWith("/register") && v !== "/") return "/";
+  if (!v.startsWith("/register") && v !== "/" && v !== "/pets") return "/";
   const url = new URL(v, "http://x");
   if (url.pathname === "/register") url.searchParams.append("pet", petId);
   return url.pathname + url.search;
