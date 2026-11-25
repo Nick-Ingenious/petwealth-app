@@ -14,7 +14,7 @@ export function SyncShippingButton({ configured }: { configured: boolean }) {
       <Button
         variant="secondary"
         disabled={!configured || pending}
-        title={configured ? undefined : "Add SHOPIFY_ADMIN_ACCESS_TOKEN in Vercel to enable"}
+        title={configured ? undefined : "Add SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET in Vercel to enable"}
         onClick={() => start(async () => setResult(await syncShopifyShippingAction()))}
       >
         <RefreshCw className={pending ? "size-4 animate-spin" : "size-4"} aria-hidden />

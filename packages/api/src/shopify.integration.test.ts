@@ -182,7 +182,13 @@ describe.skipIf(!run)("shopify intake (db)", () => {
     if (intake.result?.status !== "created") throw new Error("expected created");
     const staff: StaffContext = { kind: "staff", staffId: randomUUID(), email: "ops@petwealth.com", name: null, role: "super_admin", permissions: new Set(ALL_PERMISSIONS), via: "admin_ui" };
     const calls: string[] = [];
-    const fetchImpl = (async (_url: string, init: RequestInit) => {
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      if (String(url).endsWith("/admin/oauth/access_token")) {
+        const body = new URLSearchParams(String(init.body));
+        expect(body.get("grant_type")).toBe("client_credentials");
+        return new Response(JSON.stringify({ access_token: "shpat_test", scope: "read_orders,read_fulfillments", expires_in: 86399 }), { status: 200 });
+      }
+      expect((init.headers as Record<string, string>)["x-shopify-access-token"]).toBe("shpat_test");
       const { variables } = JSON.parse(String(init.body)) as { variables: { id: string } };
       calls.push(variables.id);
       const isOurs = variables.id === `gid://shopify/Order/${order.id}`;
@@ -212,8 +218,8 @@ describe.skipIf(!run)("shopify intake (db)", () => {
       );
     }) as unknown as typeof fetch;
 
-    await expect(backfillShopifyFulfillments(staff, { shopDomain: null, accessToken: null })).rejects.toThrow(/SHOPIFY_ADMIN_ACCESS_TOKEN/);
-    const out = await backfillShopifyFulfillments(staff, { shopDomain: "petwealth-test.myshopify.com", accessToken: "test", limit: 500, fetchImpl });
+    await expect(backfillShopifyFulfillments(staff, { shopDomain: null, accessToken: null })).rejects.toThrow(/SHOPIFY_CLIENT_ID/);
+    const out = await backfillShopifyFulfillments(staff, { shopDomain: "petwealth-test.myshopify.com", clientId: "id", clientSecret: "secret", limit: 500, fetchImpl });
     expect(calls).toContain(`gid://shopify/Order/${order.id}`);
     expect(out.errors).toEqual([]);
     const kits = await getDb().select().from(s.kits).where(eq(s.kits.orderId, intake.result.orderId));

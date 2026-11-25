@@ -175,6 +175,27 @@ export function normalizeGraphqlFulfillments(json: unknown): NormalizedFulfillme
 /** Admin API version for the backfill. Override with SHOPIFY_API_VERSION if Shopify retires it. */
 export const SHOPIFY_API_VERSION = "2026-07";
 
+/**
+ * Admin API token for a Dev Dashboard custom app (client credentials grant).
+ * Tokens last 24 hours, so callers mint one per run.
+ */
+export async function getClientCredentialsToken(
+  opts: { shopDomain: string; clientId: string; clientSecret: string; fetchImpl?: typeof fetch },
+): Promise<string> {
+  const res = await (opts.fetchImpl ?? fetch)(`https://${opts.shopDomain}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "client_credentials", client_id: opts.clientId, client_secret: opts.clientSecret }),
+  });
+  const json = (await res.json().catch(() => ({}))) as { access_token?: string; error?: string; error_description?: string };
+  if (!res.ok || !json.access_token) {
+    throw new ShopifyPayloadError(
+      `Shopify didn't issue an Admin API token (${json.error_description ?? json.error ?? res.status}). Check the app's client ID and secret, and that it's installed on the store.`,
+    );
+  }
+  return json.access_token;
+}
+
 /** Fetch one order's fulfilments from the Admin GraphQL API. */
 export async function fetchOrderFulfillments(
   opts: { shopDomain: string; accessToken: string; apiVersion?: string; fetchImpl?: typeof fetch },

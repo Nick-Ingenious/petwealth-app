@@ -12,6 +12,8 @@ export async function syncShopifyShippingAction(): Promise<SyncResult> {
   const result = await runAction((staff) =>
     backfillShopifyFulfillments(staff, {
       shopDomain: normalizeShopDomain(process.env.SHOPIFY_SHOP_DOMAIN),
+      clientId: process.env.SHOPIFY_CLIENT_ID,
+      clientSecret: process.env.SHOPIFY_CLIENT_SECRET,
       accessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
       apiVersion: process.env.SHOPIFY_API_VERSION || undefined,
     }),

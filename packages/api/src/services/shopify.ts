@@ -19,6 +19,7 @@ import { and, asc, eq, getDb, inArray, schema as s, sql, type DbOrTx } from "@pe
 import {
   ShopifyPayloadError,
   fetchOrderFulfillments,
+  getClientCredentialsToken,
   normalizeShopifyFulfillment,
   normalizeShopifyOrder,
   type NormalizedFulfillment,
@@ -433,11 +434,30 @@ export async function syncShopifyFulfillment(f: NormalizedFulfillment): Promise<
  */
 export async function backfillShopifyFulfillments(
   ctx: StaffContext,
-  opts: { shopDomain?: string | null; accessToken?: string | null; apiVersion?: string; limit?: number; fetchImpl?: typeof fetch },
+  opts: {
+    shopDomain?: string | null;
+    /** A Dev Dashboard app's credentials (preferred), or a legacy custom app's token. */
+    clientId?: string | null;
+    clientSecret?: string | null;
+    accessToken?: string | null;
+    apiVersion?: string;
+    limit?: number;
+    fetchImpl?: typeof fetch;
+  },
 ) {
   requirePermission(ctx, "orders.manage");
-  if (!opts.shopDomain || !opts.accessToken) {
-    throw invalid("Shopify Admin API access isn't set up yet. Add SHOPIFY_ADMIN_ACCESS_TOKEN in Vercel.");
+  const hasClient = Boolean(opts.clientId && opts.clientSecret);
+  if (!opts.shopDomain || (!hasClient && !opts.accessToken)) {
+    throw invalid("Shopify Admin API access isn't set up yet. Add SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET in Vercel.");
+  }
+  let accessToken: string;
+  try {
+    accessToken = hasClient
+      ? await getClientCredentialsToken({ shopDomain: opts.shopDomain, clientId: opts.clientId!, clientSecret: opts.clientSecret!, fetchImpl: opts.fetchImpl })
+      : opts.accessToken!;
+  } catch (e) {
+    if (e instanceof ShopifyPayloadError) throw invalid(e.message);
+    throw e;
   }
   const db = getDb();
   const orders = await db
@@ -452,7 +472,7 @@ export async function backfillShopifyFulfillments(
     result.checked++;
     try {
       const fulfilments = await fetchOrderFulfillments(
-        { shopDomain: opts.shopDomain, accessToken: opts.accessToken, apiVersion: opts.apiVersion, fetchImpl: opts.fetchImpl },
+        { shopDomain: opts.shopDomain, accessToken, apiVersion: opts.apiVersion, fetchImpl: opts.fetchImpl },
         o.shopifyOrderId!,
       );
       for (const f of fulfilments) {

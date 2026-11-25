@@ -23,7 +23,10 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
         title="Orders"
         description={`${page.total.toLocaleString()} orders`}
         actions={
-          can(staff, "orders.manage") ? <SyncShippingButton configured={Boolean(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN && process.env.SHOPIFY_SHOP_DOMAIN)} /> : undefined
+          can(staff, "orders.manage") ? <SyncShippingButton configured={Boolean(
+                process.env.SHOPIFY_SHOP_DOMAIN &&
+                  ((process.env.SHOPIFY_CLIENT_ID && process.env.SHOPIFY_CLIENT_SECRET) || process.env.SHOPIFY_ADMIN_ACCESS_TOKEN),
+              )} /> : undefined
         }
       />
       <div className="mb-4 flex flex-wrap gap-3">

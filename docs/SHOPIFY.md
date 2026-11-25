@@ -34,7 +34,15 @@ ShipStation or Defender ships the box and creates a fulfilment in Shopify with t
 4. Once nothing on the order is waiting to ship, the order becomes **Fulfilled**. Cancelled or failed fulfilments flag the order **Needs attention** instead of moving kits back.
 
 ## Backfill (orders fulfilled before the webhooks were on)
-**Orders → Sync shipping from Shopify** reads each open order's fulfilments from the Admin GraphQL API and applies them the same way (40 orders per click; run it again until nothing is left). It needs a Shopify Admin API access token with `read_orders` and `read_fulfillments`, stored in Vercel as `SHOPIFY_ADMIN_ACCESS_TOKEN` (Sensitive). `SHOPIFY_API_VERSION` overrides the API version if Shopify retires the default.
+**Orders → Sync shipping from Shopify** reads each open order's fulfilments from the Admin GraphQL API and applies them the same way (40 orders per click; run it again until nothing is left).
+
+Access comes from a Dev Dashboard custom app (Shopify no longer issues copyable admin tokens for new apps):
+1. Shopify admin → **Settings → Apps → Develop apps → Build apps in Dev Dashboard** → **Create app** (e.g. "Petwealth sync").
+2. **Versions → Create version**, scopes `read_orders` and `read_fulfillments` (add `read_merchant_managed_fulfillment_orders` / `read_third_party_fulfillment_orders` only if Shopify asks) → **Release**.
+3. **Install app** on the store.
+4. App **Settings**: copy the **Client ID** and **Client secret** into Vercel (admin project, Production) as `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET`, both Sensitive.
+
+Each sync asks Shopify for a fresh 24-hour token with the client credentials grant. A legacy custom app's token in `SHOPIFY_ADMIN_ACCESS_TOKEN` also works. `SHOPIFY_API_VERSION` overrides the API version if Shopify retires the default.
 
 ## Safety
 - Requests without a valid `X-Shopify-Hmac-Sha256` signature over the raw body, or from a shop other than `SHOPIFY_SHOP_DOMAIN`, get **401**.
