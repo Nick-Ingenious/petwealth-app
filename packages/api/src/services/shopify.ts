@@ -3,21 +3,31 @@
  *
  *   webhook ──► processShopifyWebhook ──► webhook_events (dedupe + audit)
  *                          │
- *                          ├─ orders/paid      ──► ingestShopifyOrder   → customer, address, order, kits
- *                          └─ orders/cancelled ──► cancelShopifyOrder  → cancel unshipped kits
+ *                          ├─ orders/paid         ──► ingestShopifyOrder       → customer, address, order, kits
+ *                          ├─ orders/cancelled    ──► cancelShopifyOrder       → cancel unshipped kits
+ *                          └─ fulfillments/create ──► syncShopifyFulfillment   → outbound shipment, kits Shipped
+ *                             fulfillments/update                              → tracking, kits Delivered
+ *
+ * Outbound kits are packed and shipped by ShipStation (customers) and Defender
+ * (3PL); both write the fulfilment back to Shopify, which is where we read it.
  *
  * Every path is idempotent: Shopify retries deliveries and can send the same
  * event twice, so re-processing an already-handled order is a no-op.
  */
 import { panelsForTestType, parseKitProductTitle, type KitStatus } from "@petwealth/domain";
-import { and, eq, getDb, schema as s, sql, type DbOrTx } from "@petwealth/db";
+import { and, asc, eq, getDb, inArray, schema as s, sql, type DbOrTx } from "@petwealth/db";
 import {
   ShopifyPayloadError,
+  fetchOrderFulfillments,
+  normalizeShopifyFulfillment,
   normalizeShopifyOrder,
+  type NormalizedFulfillment,
   type NormalizedOrder,
   type ShopifyTopic,
 } from "@petwealth/integrations/shopify";
 import { SHOPIFY_ACTOR, recordEvent } from "../audit";
+import { requirePermission, type StaffContext } from "../context";
+import { invalid } from "../errors";
 import { changeKitStatus } from "./kits";
 
 export interface ShopifyIntakeOptions {
@@ -35,6 +45,7 @@ export type IntakeResult =
   | { status: "created"; orderId: string; orderNumber: number; kitCount: number; unmapped: string[] }
   | { status: "cancelled"; orderId: string; cancelledKits: string[]; alreadyShipped: string[] }
   | { status: "duplicate"; orderId?: string }
+  | { status: "fulfilment_synced"; orderId: string; shipmentId: string; created: boolean; kitsShipped: number; kitsDelivered: number }
   | { status: "ignored"; reason: string };
 
 // ── Products ───────────────────────────────────────────────────────────
@@ -171,7 +182,7 @@ export async function ingestShopifyOrder(order: NormalizedOrder, opts: ShopifyIn
     for (const { li, product } of resolved) {
       const [item] = await tx
         .insert(s.orderItems)
-        .values({ orderId: row!.id, productId: product.id, quantity: li.quantity, unitPriceCents: li.unitPriceCents })
+        .values({ orderId: row!.id, productId: product.id, quantity: li.quantity, unitPriceCents: li.unitPriceCents, shopifyLineItemId: li.shopifyLineItemId })
         .returning();
       const kitRows = Array.from({ length: li.quantity }).flatMap(() =>
         panelsForTestType(product.testType).map((panel) => ({
@@ -249,6 +260,217 @@ export async function cancelShopifyOrder(order: NormalizedOrder): Promise<Intake
   });
 }
 
+// ── Fulfilments ───────────────────────────────────────────────────────
+
+type KitRow = typeof s.kits.$inferSelect;
+
+/** Kits still waiting to leave the warehouse. */
+const NOT_SHIPPED: readonly KitStatus[] = ["ordered", "label_created"];
+
+/**
+ * The order's kits a fulfilment shipped: match each fulfilled line item to
+ * its order item (line item id, then variant, SKU or title for orders imported
+ * before we stored line item ids), then take that many unshipped kits. A
+ * fulfilment with no line items ships everything still waiting.
+ */
+async function kitsForFulfillment(tx: DbOrTx, orderId: string, f: NormalizedFulfillment): Promise<KitRow[]> {
+  const already = tx
+    .select({ kitId: s.shipmentKits.kitId })
+    .from(s.shipmentKits)
+    .innerJoin(s.shipments, eq(s.shipmentKits.shipmentId, s.shipments.id))
+    .where(and(eq(s.shipments.direction, "outbound"), eq(s.shipments.orderId, orderId)));
+  const waiting = await tx
+    .select()
+    .from(s.kits)
+    .where(and(eq(s.kits.orderId, orderId), inArray(s.kits.status, [...NOT_SHIPPED]), sql`${s.kits.id} not in (${already})`))
+    .orderBy(asc(s.kits.createdAt))
+    .for("update");
+  if (!f.lineItems.length) return waiting;
+
+  const items = await tx
+    .select({ item: s.orderItems, product: s.products })
+    .from(s.orderItems)
+    .innerJoin(s.products, eq(s.orderItems.productId, s.products.id))
+    .where(eq(s.orderItems.orderId, orderId));
+  const used = new Set<string>();
+  const picked: KitRow[] = [];
+  for (const li of f.lineItems) {
+    const parsed = parseKitProductTitle(li.title);
+    const match =
+      items.find((x) => x.item.shopifyLineItemId === li.shopifyLineItemId) ??
+      items.find((x) => li.variantId && x.product.shopifyVariantId === li.variantId) ??
+      items.find((x) => li.sku && x.product.sku.toLowerCase() === li.sku.toLowerCase()) ??
+      items.find((x) => parsed && x.product.species === parsed.species && x.product.testType === parsed.testType);
+    if (!match) continue; // not a kit (e.g. merch)
+    const want = li.quantity * panelsForTestType(match.product.testType).length;
+    for (const kit of waiting) {
+      if (picked.length && picked.filter((k) => k.orderItemId === match.item.id).length >= want) break;
+      if (kit.orderItemId === match.item.id && !used.has(kit.id)) {
+        used.add(kit.id);
+        picked.push(kit);
+      }
+    }
+  }
+  return picked;
+}
+
+const SHIPMENT_STATUS = { shipped: "in_transit", delivered: "delivered", cancelled: "voided", failed: "exception" } as const;
+
+/** Record (or update) the outbound shipment for a Shopify fulfilment and move its kits along. */
+export async function syncShopifyFulfillment(f: NormalizedFulfillment): Promise<IntakeResult> {
+  return getDb().transaction(async (tx) => {
+    const order = await tx.query.orders.findFirst({ where: eq(s.orders.shopifyOrderId, f.shopifyOrderId) });
+    if (!order) return { status: "ignored", reason: "Order was never imported" };
+
+    const status = SHIPMENT_STATUS[f.state];
+    const deliveredAt = f.state === "delivered" ? f.occurredAt : null;
+    let [shipment] = await tx.select().from(s.shipments).where(eq(s.shipments.shopifyFulfillmentId, f.shopifyFulfillmentId)).for("update");
+    const created = !shipment;
+
+    if (!shipment) {
+      // Split fulfilments can share one tracking number; keep the first owner of it.
+      const clash =
+        f.trackingNumber &&
+        (await tx.query.shipments.findFirst({ where: and(eq(s.shipments.carrier, f.carrier), eq(s.shipments.trackingNumber, f.trackingNumber)) }));
+      [shipment] = await tx
+        .insert(s.shipments)
+        .values({
+          direction: "outbound",
+          carrier: f.carrier,
+          trackingNumber: clash ? null : f.trackingNumber,
+          trackingUrl: f.trackingUrl,
+          status,
+          statusDetail: [f.carrierName, f.name, clash ? `tracking ${f.trackingNumber}` : null].filter(Boolean).join(" · ") || null,
+          orderId: order.id,
+          customerId: order.customerId,
+          shopifyFulfillmentId: f.shopifyFulfillmentId,
+          pickedUpAt: f.occurredAt,
+          deliveredAt,
+          lastCarrierEventAt: f.occurredAt,
+        })
+        .returning();
+      const kits = await kitsForFulfillment(tx, order.id, f);
+      if (kits.length) await tx.insert(s.shipmentKits).values(kits.map((k) => ({ shipmentId: shipment!.id, kitId: k.id })));
+      await recordEvent(tx, {
+        entityType: "shipment",
+        entityId: shipment!.id,
+        type: "shipment.created",
+        ...SHOPIFY_ACTOR,
+        payload: { direction: "outbound", fulfillment: f.name, carrier: f.carrierName, trackingNumber: f.trackingNumber, kits: kits.length },
+      });
+      if (!kits.length) {
+        await recordEvent(tx, {
+          entityType: "order",
+          entityId: order.id,
+          type: "order.needs_attention",
+          ...SHOPIFY_ACTOR,
+          payload: { reason: `Shopify fulfilment ${f.name ?? f.shopifyFulfillmentId} didn't match any kits waiting to ship` },
+        });
+      }
+    } else if (shipment.status !== status || (f.trackingNumber && shipment.trackingNumber !== f.trackingNumber && !shipment.trackingNumber)) {
+      [shipment] = await tx
+        .update(s.shipments)
+        .set({
+          status,
+          trackingNumber: shipment.trackingNumber ?? f.trackingNumber,
+          trackingUrl: f.trackingUrl ?? shipment.trackingUrl,
+          deliveredAt: deliveredAt ?? shipment.deliveredAt,
+          lastCarrierEventAt: f.occurredAt,
+        })
+        .where(eq(s.shipments.id, shipment.id))
+        .returning();
+      await recordEvent(tx, {
+        entityType: "shipment",
+        entityId: shipment!.id,
+        type: `shipment.${status}`,
+        ...SHOPIFY_ACTOR,
+        payload: { fulfillment: f.name, trackingNumber: f.trackingNumber },
+      });
+    }
+
+    const kitIds = (await tx.select({ kitId: s.shipmentKits.kitId }).from(s.shipmentKits).where(eq(s.shipmentKits.shipmentId, shipment!.id))).map((r) => r.kitId);
+    const kits = kitIds.length ? await tx.select().from(s.kits).where(inArray(s.kits.id, kitIds)).for("update") : [];
+    const payload = { via: "shopify", fulfillment: f.name, carrier: f.carrierName, trackingNumber: f.trackingNumber };
+    let kitsShipped = 0;
+    let kitsDelivered = 0;
+    if (f.state === "shipped" || f.state === "delivered") {
+      for (let kit of kits) {
+        if (NOT_SHIPPED.includes(kit.status)) {
+          kit = await changeKitStatus(tx, kit, "shipped", SHOPIFY_ACTOR, payload);
+          kitsShipped++;
+        }
+        if (f.state === "delivered" && kit.status === "shipped") {
+          await changeKitStatus(tx, kit, "delivered", SHOPIFY_ACTOR, payload);
+          kitsDelivered++;
+        }
+      }
+    } else if (created || kits.some((k) => k.status === "shipped")) {
+      await recordEvent(tx, {
+        entityType: "order",
+        entityId: order.id,
+        type: "order.needs_attention",
+        ...SHOPIFY_ACTOR,
+        payload: { reason: `Shopify fulfilment ${f.name ?? f.shopifyFulfillmentId} was ${f.state}. Check the kits' status by hand.` },
+      });
+    }
+
+    // The order is fulfilled once nothing is left waiting to ship.
+    if (order.status === "open") {
+      const [left] = await tx
+        .select({ n: sql<number>`count(*)`.mapWith(Number) })
+        .from(s.kits)
+        .where(and(eq(s.kits.orderId, order.id), inArray(s.kits.status, [...NOT_SHIPPED])));
+      if (!left?.n && kitsShipped) await tx.update(s.orders).set({ status: "fulfilled" }).where(eq(s.orders.id, order.id));
+    }
+    return { status: "fulfilment_synced", orderId: order.id, shipmentId: shipment!.id, created, kitsShipped, kitsDelivered };
+  });
+}
+
+/**
+ * Pull fulfilments from the Shopify Admin API for orders that still have kits
+ * waiting to ship (orders fulfilled before the webhooks were set up). Run from
+ * the admin Orders page; each run handles up to `limit` orders.
+ */
+export async function backfillShopifyFulfillments(
+  ctx: StaffContext,
+  opts: { shopDomain?: string | null; accessToken?: string | null; apiVersion?: string; limit?: number; fetchImpl?: typeof fetch },
+) {
+  requirePermission(ctx, "orders.manage");
+  if (!opts.shopDomain || !opts.accessToken) {
+    throw invalid("Shopify Admin API access isn't set up yet. Add SHOPIFY_ADMIN_ACCESS_TOKEN in Vercel.");
+  }
+  const db = getDb();
+  const orders = await db
+    .selectDistinct({ id: s.orders.id, shopifyOrderId: s.orders.shopifyOrderId, placedAt: s.orders.placedAt })
+    .from(s.orders)
+    .innerJoin(s.kits, eq(s.kits.orderId, s.orders.id))
+    .where(and(eq(s.orders.source, "shopify"), eq(s.orders.status, "open"), inArray(s.kits.status, [...NOT_SHIPPED]), sql`${s.orders.shopifyOrderId} is not null`))
+    .orderBy(asc(s.orders.placedAt));
+  const batch = orders.slice(0, opts.limit ?? 40);
+  const result = { checked: 0, fulfilments: 0, kitsShipped: 0, kitsDelivered: 0, remaining: orders.length - batch.length, errors: [] as string[] };
+  for (const o of batch) {
+    result.checked++;
+    try {
+      const fulfilments = await fetchOrderFulfillments(
+        { shopDomain: opts.shopDomain, accessToken: opts.accessToken, apiVersion: opts.apiVersion, fetchImpl: opts.fetchImpl },
+        o.shopifyOrderId!,
+      );
+      for (const f of fulfilments) {
+        const r = await syncShopifyFulfillment(f);
+        if (r.status === "fulfilment_synced") {
+          result.fulfilments++;
+          result.kitsShipped += r.kitsShipped;
+          result.kitsDelivered += r.kitsDelivered;
+        }
+      }
+    } catch (e) {
+      if (e instanceof ShopifyPayloadError && /token/.test(e.message)) throw invalid(e.message);
+      result.errors.push(`Order ${o.shopifyOrderId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return result;
+}
+
 // ── Webhook entry point ────────────────────────────────────────────────
 
 export interface ShopifyDelivery {
@@ -294,8 +516,12 @@ export async function processShopifyWebhook(d: ShopifyDelivery, opts: ShopifyInt
       .where(eq(s.webhookEvents.id, event!.id));
 
   try {
-    const order = normalizeShopifyOrder(d.payload);
-    const result = d.topic === "orders/cancelled" ? await cancelShopifyOrder(order) : await ingestShopifyOrder(order, opts);
+    const result =
+      d.topic === "fulfillments/create" || d.topic === "fulfillments/update"
+        ? await syncShopifyFulfillment(normalizeShopifyFulfillment(d.payload))
+        : d.topic === "orders/cancelled"
+          ? await cancelShopifyOrder(normalizeShopifyOrder(d.payload))
+          : await ingestShopifyOrder(normalizeShopifyOrder(d.payload), opts);
     const status = result.status === "ignored" || result.status === "duplicate" ? "ignored" : "processed";
     await finish(status, { result });
     return { outcome: status, result };

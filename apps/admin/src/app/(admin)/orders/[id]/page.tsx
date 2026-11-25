@@ -51,7 +51,7 @@ const PRODUCT_BLURB: Record<TestType, (pet: string) => string> = {
 };
 const productBlurb = (p: { species: Species; testType: TestType }) => PRODUCT_BLURB[p.testType](SPECIES_LABEL[p.species].noun.toLowerCase());
 
-const CARRIER_LABEL: Record<string, string> = { fedex: "FedEx" };
+const CARRIER_LABEL: Record<string, string> = { fedex: "FedEx", usps: "USPS", ups: "UPS", dhl: "DHL" };
 const SHIPMENT_LABEL: Record<string, string> = {
   pending: "Pending",
   failed: "Label failed",
@@ -211,8 +211,18 @@ export default async function OrderDetail({ params }: PageProps<"/orders/[id]">)
                       {s.rmaNumber ? <span className="ml-2 font-mono text-xs text-ink-muted">{s.rmaNumber}</span> : null}
                     </p>
                     <p className="font-mono text-xs text-ink-muted">
-                      {(CARRIER_LABEL[s.carrier] ?? s.carrier.toUpperCase())} {s.trackingNumber ?? "· awaiting tracking number"}
+                      {CARRIER_LABEL[s.carrier] ?? s.carrier.toUpperCase()}{" "}
+                      {s.trackingNumber && s.trackingUrl ? (
+                        <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-brand-700 hover:underline">
+                          {s.trackingNumber}
+                        </a>
+                      ) : (
+                        (s.trackingNumber ?? "· awaiting tracking number")
+                      )}
                     </p>
+                    {s.shopifyFulfillmentId ? (
+                      <p className="mt-0.5 text-xs text-ink-subtle">From Shopify{s.statusDetail ? ` · ${s.statusDetail}` : ""}</p>
+                    ) : null}
                     {codes.length ? <p className="mt-0.5 truncate font-mono text-xs text-ink-subtle">{codes.join(", ")}</p> : null}
                     {s.status === "failed" && s.error ? <p className="mt-0.5 text-xs text-red-600">{s.error}</p> : null}
                   </div>

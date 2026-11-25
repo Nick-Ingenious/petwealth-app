@@ -3,8 +3,9 @@ import { processShopifyWebhook } from "@petwealth/api";
 import { isShopifyTopic, normalizeShopDomain, verifyShopifyHmac } from "@petwealth/integrations/shopify";
 
 /**
- * Shopify webhook receiver — subscribe `orders/paid` and `orders/cancelled`
- * to https://<admin-domain>/api/webhooks/shopify (JSON format).
+ * Shopify webhook receiver. Subscribe `orders/paid`, `orders/cancelled`,
+ * `fulfillments/create` and `fulfillments/update` to
+ * https://<admin-domain>/api/webhooks/shopify (JSON format).
  *
  * Public (no staff session): authenticity comes from the HMAC signature over
  * the raw body plus the shop-domain check. Responds fast; Shopify retries any

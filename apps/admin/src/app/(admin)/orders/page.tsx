@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { ChevronRight, Package } from "lucide-react";
-import { listOrders } from "@petwealth/api";
+import { can, listOrders } from "@petwealth/api";
 import { KIT_STATUS_META, KIT_STATUSES } from "@petwealth/domain";
 import { Badge, Card, EmptyState, KitStatusBadge, PageHeader, TBody, TD, TH, THead, TR, Table } from "@petwealth/ui";
 import { FilterSelect, SearchBox } from "@/components/list-controls";
 import { Pagination } from "@/components/pagination";
 import { requireStaff } from "@/lib/auth";
 import { formatCents, formatDate, fullName, orderRef } from "@/lib/format";
+import { SyncShippingButton } from "./sync-button";
 
 export const metadata = { title: "Orders" };
 
@@ -17,7 +18,14 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
 
   return (
     <>
-      <PageHeader icon={<Package className="size-6" />} title="Orders" description={`${page.total.toLocaleString()} orders`} />
+      <PageHeader
+        icon={<Package className="size-6" />}
+        title="Orders"
+        description={`${page.total.toLocaleString()} orders`}
+        actions={
+          can(staff, "orders.manage") ? <SyncShippingButton configured={Boolean(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN && process.env.SHOPIFY_SHOP_DOMAIN)} /> : undefined
+        }
+      />
       <div className="mb-4 flex flex-wrap gap-3">
         <SearchBox placeholder="Search order #, customer, or kit ID…" />
         <FilterSelect name="status" label="Any kit stage" options={KIT_STATUSES.map((s) => ({ value: s, label: KIT_STATUS_META[s].label }))} />

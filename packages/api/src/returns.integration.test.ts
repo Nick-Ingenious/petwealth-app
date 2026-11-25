@@ -91,7 +91,8 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
     expect(email[0]).toMatchObject({ status: "sent", providerMessageId: expect.stringMatching(/^test_/), error: null });
     expect(mail.sent).toHaveLength(1);
     expect(mail.sent[0]).toMatchObject({ to: customer.email, subject: "Your FedEx code is ready", idempotencyKey: `notification-${email[0]!.id}` });
-    expect(mail.sent[0]!.text).toContain("Felix's Fecal test and Rex's Respiratory test");
+    // Kit order in the sentence follows the query, so accept either.
+    expect(mail.sent[0]!.text).toMatch(/Felix's Fecal test and Rex's Respiratory test|Rex's Respiratory test and Felix's Fecal test/);
     expect(mail.sent[0]!.attachments?.map((a) => a.contentId)).toEqual(["fedex-code"]);
   });
 

@@ -233,6 +233,8 @@ export const orderItems = pgTable(
       .references(() => products.id),
     quantity: integer().notNull().default(1),
     unitPriceCents: integer().notNull(),
+    /** Shopify line item id, so fulfilments can be matched to the kits they shipped. */
+    shopifyLineItemId: text(),
   },
   (t) => [index("order_items_order_idx").on(t.orderId)],
 );
@@ -283,6 +285,9 @@ export const shipments = pgTable(
     direction: shipmentDirectionEnum().notNull(),
     carrier: text().notNull().default("fedex"),
     rmaNumber: text().unique(),
+    /** Outbound shipments come from Shopify fulfilments (ShipStation / Defender). */
+    shopifyFulfillmentId: text().unique(),
+    trackingUrl: text(),
     customerId: uuid().references(() => customers.id, { onDelete: "set null" }),
     orderId: uuid().references(() => orders.id, { onDelete: "set null" }),
     /** Null until the carrier has created the shipment. */

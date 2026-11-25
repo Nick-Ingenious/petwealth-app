@@ -1,9 +1,13 @@
-# Shopify → PetWealth order intake
+# Shopify → PetWealth orders and shipping
 
-Paid Shopify orders become PetWealth orders and kits automatically.
+Paid Shopify orders become PetWealth orders and kits automatically. Kits are
+shipped by **ShipStation** (customers) and **Defender** (our 3PL); both write the
+fulfilment and tracking back to Shopify, and we read it from there to mark kits
+Shipped and Delivered.
 
 ```
-Shopify ──(orders/paid, orders/cancelled)──► POST /api/webhooks/shopify
+Shopify ──(orders/paid, orders/cancelled,
+          fulfillments/create, fulfillments/update)──► POST /api/webhooks/shopify
             signed with HMAC-SHA256             │ verify signature + shop domain
                                                 ▼
                                   webhook_events (dedupe, audit, replay)
@@ -16,11 +20,21 @@ Shopify ──(orders/paid, orders/cancelled)──► POST /api/webhooks/shopif
 1. **Customer** is matched by Shopify customer id, then by email (case-insensitive). New customers are created; for existing ones we only *fill gaps* (missing phone/name) and never overwrite edits.
 2. **Shipping address** is reused if the same street + ZIP already exists for that customer.
 3. **Products** are matched by Shopify variant id → SKU → product title (`"Dog Respiratory Health Kit"`, `"Cat Complete Health Kit"`, …). A recognised title with no catalog row creates one, so the catalog fills itself. The variant id is remembered for next time.
-4. **Kits** — one per lab panel per unit: a Complete kit creates fecal + respiratory + oral kits. Kits start as `ordered` with no kit code; codes and FedEx labels are assigned at fulfilment (Milestone 2b).
+4. **Kits**: one per lab panel per unit; a Complete kit creates fecal + respiratory + oral kits. Kits start as `ordered` with no kit code. The code is attached when the customer scans the tube (it's matched to one of their ordered kits of the same type).
 5. **Unrecognised physical products** don't block the order: recognised items still create kits, and the order shows a **Needs attention** banner. Non-shipping items (gift cards) are skipped; orders with no physical items at all are ignored.
 
 ## What happens on `orders/cancelled`
 Kits still `ordered`/`label_created` are cancelled. Kits that already shipped are left alone and the order is flagged **Needs attention** so staff can arrange the return/refund.
+
+## What happens on `fulfillments/create` and `fulfillments/update`
+ShipStation or Defender ships the box and creates a fulfilment in Shopify with the carrier and tracking number.
+1. We record an **outbound shipment** for the order (carrier, tracking number and link, fulfilment name), keyed on the Shopify fulfilment id so repeats are no-ops.
+2. The fulfilment's line items are matched to the order's kits (line item id, then variant, SKU or title), and those kits move **Ordered → Shipped**. A fulfilment with no line items ships everything still waiting. No customer email is sent (the old app didn't send one either).
+3. When Shopify reports the shipment **delivered**, the kits move **Shipped → Delivered**. FedEx outbound shipments are also checked by the tracking cron.
+4. Once nothing on the order is waiting to ship, the order becomes **Fulfilled**. Cancelled or failed fulfilments flag the order **Needs attention** instead of moving kits back.
+
+## Backfill (orders fulfilled before the webhooks were on)
+**Orders → Sync shipping from Shopify** reads each open order's fulfilments from the Admin GraphQL API and applies them the same way (40 orders per click; run it again until nothing is left). It needs a Shopify Admin API access token with `read_orders` and `read_fulfillments`, stored in Vercel as `SHOPIFY_ADMIN_ACCESS_TOKEN` (Sensitive). `SHOPIFY_API_VERSION` overrides the API version if Shopify retires the default.
 
 ## Safety
 - Requests without a valid `X-Shopify-Hmac-Sha256` signature over the raw body, or from a shop other than `SHOPIFY_SHOP_DOMAIN`, get **401**.
@@ -29,7 +43,7 @@ Kits still `ordered`/`label_created` are cancelled. Kits that already shipped ar
 - Logs contain ids and outcomes only — never customer details.
 
 ## Setup (per environment)
-1. In Shopify admin: **Settings → Notifications → Webhooks** (or a custom app's webhook subscriptions) → add **Order payment** (`orders/paid`) and **Order cancellation** (`orders/cancelled`), format **JSON**, URL `https://<admin domain>/api/webhooks/shopify`.
+1. In Shopify admin: **Settings → Notifications → Webhooks** (or a custom app's webhook subscriptions) → add **Order payment** (`orders/paid`), **Order cancellation** (`orders/cancelled`), **Fulfillment creation** (`fulfillments/create`) and **Fulfillment update** (`fulfillments/update`), format **JSON**, URL `https://<admin domain>/api/webhooks/shopify`.
 2. Copy the webhook **signing secret** into Vercel as `SHOPIFY_WEBHOOK_SECRET`, and set `SHOPIFY_SHOP_DOMAIN` to the store's `*.myshopify.com` domain.
 3. Optional: `SHOPIFY_ACCEPT_TEST_ORDERS` (default: accepted everywhere except Vercel production) and `SHOPIFY_SMS_CONSENT_MODE` (below).
 4. Place a test order and check it appears under **Orders**.

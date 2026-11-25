@@ -55,7 +55,9 @@ export const KIT_STATUS_META: Record<
 const TRANSITIONS: Record<KitStatus, readonly KitStatus[]> = {
   // A customer can scan + register a kit before we've recorded it as shipped
   // (e.g. outbound tracking not connected, or a kit bought at a vet).
-  ordered: ["label_created", "activated", "cancelled"],
+  // ShipStation / Defender ship straight from the Shopify order, so a kit can
+  // go from Ordered to Shipped without us creating a label.
+  ordered: ["label_created", "shipped", "activated", "cancelled"],
   label_created: ["shipped", "activated", "cancelled"],
   shipped: ["delivered", "activated", "received_at_lab", "cancelled"],
   delivered: ["activated", "received_at_lab", "cancelled"],

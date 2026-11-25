@@ -10,6 +10,7 @@ import { requireStaff } from "@/lib/auth";
 import { formatDateTime, fullName, kitName, orderRef } from "@/lib/format";
 import { StatusForm } from "./status-form";
 
+const CARRIER_LABEL: Record<string, string> = { fedex: "FedEx", usps: "USPS", ups: "UPS", dhl: "DHL" };
 const RESULT_STATUS = {
   pending: ["warning", "To review"],
   released: ["success", "Released"],
@@ -72,7 +73,22 @@ export default async function KitDetail({ params }: PageProps<"/kits/[code]">) {
                 <div key={s.id} className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-medium">{s.direction === "return" ? `Return mailer ${s.rmaNumber ?? ""}` : "Outbound"}</p>
-                    <p className="font-mono text-xs text-ink-muted">{s.trackingNumber ? `FedEx ${s.trackingNumber}` : "No tracking yet"}</p>
+                    <p className="font-mono text-xs text-ink-muted">
+                      {s.trackingNumber ? (
+                        <>
+                          {CARRIER_LABEL[s.carrier] ?? s.carrier.toUpperCase()}{" "}
+                          {s.trackingUrl ? (
+                            <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-brand-700 hover:underline">
+                              {s.trackingNumber}
+                            </a>
+                          ) : (
+                            s.trackingNumber
+                          )}
+                        </>
+                      ) : (
+                        "No tracking yet"
+                      )}
+                    </p>
                     {s.labelFormat && !["pending", "failed"].includes(s.status) ? (
                       <a href={`/api/v1/shipments/${s.id}/label`} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand-700 hover:underline">
                         {s.labelFormat === "qr_png" ? "View QR code" : "View label"}
