@@ -185,9 +185,23 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
           <p className="mt-1 text-lg text-zinc-600">
             {kit.status === "completed"
               ? "Your report is ready to view."
-              : `${petName}'s report will appear in your dashboard.`}
+              : `${petName.charAt(0).toUpperCase()}${petName.slice(1)}'s report will appear in your dashboard.`}
           </p>
-          {kit.journey.step === "results" && kit.status !== "completed" ? <p className="mt-2 text-zinc-500">Current status: {kit.statusLabel}</p> : null}
+          {kit.status === "rerun" ? (
+            <>
+              <p className="mt-2 text-zinc-500">Current status: Rerunning {petName}&apos;s sample</p>
+              {/* Shown only in the app; we don't email or text customers about reruns. */}
+              <div className="mt-4 flex gap-3 rounded-3xl bg-sun-50 p-5 text-lg text-zinc-700">
+                <Lightbulb className="mt-1 size-6 shrink-0 text-amber-500" aria-hidden />
+                <p>
+                  Rerunning is very common for ensuring high-quality assurance on your results. This typically does not delay your results,
+                  but since we are a tightly integrated lab, you see in real time how things are moving forward.
+                </p>
+              </div>
+            </>
+          ) : kit.journey.step === "results" && kit.status !== "completed" ? (
+            <p className="mt-2 text-zinc-500">Current status: {kit.statusLabel}</p>
+          ) : null}
           {hasReport ? (
             <Link
               href={`/kits/${kit.code}/results`}
