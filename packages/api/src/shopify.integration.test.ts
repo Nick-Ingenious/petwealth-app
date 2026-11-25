@@ -7,7 +7,10 @@ import { readFileSync } from "node:fs";
 import { randomInt, randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { and, eq, getDb, schema as s } from "@petwealth/db";
-import { processShopifyWebhook, type ShopifyIntakeOptions } from "./services/shopify";
+import type { ShopifyTopic } from "@petwealth/integrations/shopify";
+import { ALL_PERMISSIONS } from "@petwealth/domain";
+import type { StaffContext } from "./context";
+import { backfillShopifyFulfillments, processShopifyWebhook, type ShopifyIntakeOptions } from "./services/shopify";
 
 const run = process.env.RUN_DB_TESTS === "1";
 const opts: ShopifyIntakeOptions = { acceptTestOrders: false, smsConsentMode: "marketing_consent" };
@@ -25,7 +28,7 @@ function makeOrder(patch: (o: Record<string, any>) => void = () => {}) {
   patch(o);
   return o;
 }
-const deliver = (payload: Record<string, any>, topic: "orders/paid" | "orders/cancelled" = "orders/paid", webhookId = randomUUID()) =>
+const deliver = (payload: Record<string, any>, topic: ShopifyTopic = "orders/paid", webhookId = randomUUID()) =>
   processShopifyWebhook({ webhookId, topic, shopDomain: "petwealth-test.myshopify.com", payload }, opts);
 
 describe.skipIf(!run)("shopify intake (db)", () => {
@@ -114,5 +117,112 @@ describe.skipIf(!run)("shopify intake (db)", () => {
     expect(bad.outcome).toBe("rejected");
     const [row] = await getDb().select().from(s.webhookEvents).where(eq(s.webhookEvents.status, "failed")).limit(1);
     expect(row?.error).toMatch(/Unrecognised Shopify order payload/);
+  });
+  it("ships kits from Shopify fulfilments, then marks them delivered", async () => {
+    const order = makeOrder();
+    const intake = await deliver(order);
+    if (intake.result?.status !== "created") throw new Error("expected created");
+    const fulfillment = (patch: Record<string, any>) => ({
+      id: 7_000_000_000_000 + randomInt(1e9),
+      order_id: order.id,
+      name: `${order.name}.1`,
+      status: "success",
+      shipment_status: null,
+      tracking_company: "USPS",
+      tracking_number: `9400${randomInt(1e9)}`,
+      tracking_url: "https://tools.usps.com/go/TrackConfirmAction?tLabels=x",
+      created_at: "2026-11-20T15:00:00-05:00",
+      updated_at: "2026-11-20T15:00:00-05:00",
+      line_items: [{ id: 14001, variant_id: 44000000001, sku: "PW-CAT-COMPLETE", title: "Cat Complete Health Kit", quantity: 1 }],
+      ...patch,
+    });
+
+    // Partial fulfilment: only the Cat Complete line (3 kits) ships.
+    const first = fulfillment({});
+    const out = await deliver(first, "fulfillments/create");
+    expect(out.result).toMatchObject({ status: "fulfilment_synced", created: true, kitsShipped: 3, kitsDelivered: 0 });
+    const db = getDb();
+    const orderId = intake.result.orderId;
+    const kits = () => db.select().from(s.kits).where(eq(s.kits.orderId, orderId));
+    expect((await kits()).map((k) => `${k.species}:${k.status}`).sort()).toEqual(["cat:shipped", "cat:shipped", "cat:shipped", "dog:ordered"]);
+    const [ship] = await db.select().from(s.shipments).where(eq(s.shipments.shopifyFulfillmentId, String(first.id)));
+    expect(ship).toMatchObject({ direction: "outbound", carrier: "usps", status: "in_transit", trackingNumber: first.tracking_number });
+    const [o1] = await db.select().from(s.orders).where(eq(s.orders.id, intake.result.orderId));
+    expect(o1!.status).toBe("open");
+
+    // Same delivery again is a no-op.
+    expect((await deliver(first, "fulfillments/create")).outcome).toBe("processed");
+    expect((await kits()).filter((k) => k.status === "shipped")).toHaveLength(3);
+
+    // Carrier reports delivery through Shopify.
+    const delivered = await deliver({ ...first, shipment_status: "delivered", updated_at: "2026-11-22T10:00:00-05:00" }, "fulfillments/update");
+    expect(delivered.result).toMatchObject({ status: "fulfilment_synced", created: false, kitsDelivered: 3 });
+
+    // Second fulfilment with no line items ships what's left; the order is then fulfilled.
+    const second = await deliver(fulfillment({ name: `${order.name}.2`, tracking_company: "FedEx", tracking_number: `7${randomInt(1e9)}`, line_items: [] }), "fulfillments/create");
+    expect(second.result).toMatchObject({ kitsShipped: 1 });
+    expect((await kits()).map((k) => k.status).sort()).toEqual(["delivered", "delivered", "delivered", "shipped"]);
+    const [o2] = await db.select().from(s.orders).where(eq(s.orders.id, intake.result.orderId));
+    expect(o2!.status).toBe("fulfilled");
+    // Kits keep no customer email for shipping (the old app never sent one).
+    const emails = await db.select().from(s.notifications).where(eq(s.notifications.customerId, o2!.customerId));
+    expect(emails).toHaveLength(0);
+  });
+
+  it("ignores fulfilments for orders we never imported", async () => {
+    const out = await deliver(
+      { id: randomInt(1e9), order_id: 1, status: "success", created_at: "2026-11-20T15:00:00Z", line_items: [] },
+      "fulfillments/create",
+    );
+    expect(out.result).toMatchObject({ status: "ignored", reason: "Order was never imported" });
+  });
+  it("backfills fulfilments from the Admin API", async () => {
+    const order = makeOrder();
+    const intake = await deliver(order);
+    if (intake.result?.status !== "created") throw new Error("expected created");
+    const staff: StaffContext = { kind: "staff", staffId: randomUUID(), email: "ops@petwealth.com", name: null, role: "super_admin", permissions: new Set(ALL_PERMISSIONS), via: "admin_ui" };
+    const calls: string[] = [];
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      if (String(url).endsWith("/admin/oauth/access_token")) {
+        const body = new URLSearchParams(String(init.body));
+        expect(body.get("grant_type")).toBe("client_credentials");
+        return new Response(JSON.stringify({ access_token: "shpat_test", scope: "read_orders,read_fulfillments", expires_in: 86399 }), { status: 200 });
+      }
+      expect((init.headers as Record<string, string>)["x-shopify-access-token"]).toBe("shpat_test");
+      const { variables } = JSON.parse(String(init.body)) as { variables: { id: string } };
+      calls.push(variables.id);
+      const isOurs = variables.id === `gid://shopify/Order/${order.id}`;
+      return new Response(
+        JSON.stringify({
+          data: {
+            order: {
+              id: variables.id,
+              fulfillments: isOurs
+                ? [
+                    {
+                      id: `gid://shopify/Fulfillment/${randomInt(1e9)}`,
+                      name: `${order.name}.1`,
+                      status: "SUCCESS",
+                      displayStatus: "DELIVERED",
+                      createdAt: "2026-11-20T20:00:00Z",
+                      updatedAt: "2026-11-22T20:00:00Z",
+                      trackingInfo: [{ company: "USPS", number: `9400${randomInt(1e9)}`, url: null }],
+                      fulfillmentLineItems: { nodes: [] },
+                    },
+                  ]
+                : [],
+            },
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as unknown as typeof fetch;
+
+    await expect(backfillShopifyFulfillments(staff, { shopDomain: null, accessToken: null })).rejects.toThrow(/SHOPIFY_CLIENT_ID/);
+    const out = await backfillShopifyFulfillments(staff, { shopDomain: "petwealth-test.myshopify.com", clientId: "id", clientSecret: "secret", limit: 500, fetchImpl });
+    expect(calls).toContain(`gid://shopify/Order/${order.id}`);
+    expect(out.errors).toEqual([]);
+    const kits = await getDb().select().from(s.kits).where(eq(s.kits.orderId, intake.result.orderId));
+    expect(kits.map((k) => k.status)).toEqual(["delivered", "delivered", "delivered", "delivered"]);
   });
 });
