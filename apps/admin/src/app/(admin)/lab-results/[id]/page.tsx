@@ -36,7 +36,13 @@ export default async function LabBatchPage({ params }: PageProps<"/lab-results/[
         <Card className="lg:col-span-1">
           <CardHeader
             title="Run controls"
-            description={failedControls.length ? "Check these before releasing." : "Positive and negative controls look right."}
+            description={
+              !batch.runControls.length
+                ? "This file has no control rows."
+                : failedControls.length
+                  ? "Check these before releasing."
+                  : "Positive and negative controls look right."
+            }
           />
           <CardBody className="space-y-3 text-sm">
             {batch.runControls.length === 0 ? <p className="text-amber-700">No control rows in this file.</p> : null}
