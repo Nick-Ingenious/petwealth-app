@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, formatKitCode } from "@petwealth/domain";
 import { and, eq, getDb, schema as s } from "@petwealth/db";
 import type { CustomerContext, StaffContext } from "./context";
+import { draftAiReport, saveAiReport } from "./services/ai-reports";
 import {
   assignUnmatchedSample,
   getLabBatch,
@@ -154,5 +155,45 @@ describe.skipIf(!run)("lab results (db)", () => {
     expect(list.find((b) => b.id === up.id)).toMatchObject({ released: 2, rerun: 1, pending: 1, unmatched: 1 });
 
     await expect(uploadLabFile(staff, { filename: "x.csv", csv: "name,email\na,b" })).rejects.toThrow(/lab results export/);
+  });
+  it("drafts, approves and shows AI summaries only once approved", async () => {
+    const { staff, customerCtx, kits } = await setup();
+    const [kit] = kits as [(typeof kits)[0]];
+    const up = await uploadLabFile(staff, { filename: "ai.csv", csv: [HEADER, ...fecal(kit.code!, "27.5")].join("\n") });
+    const batch = await getLabBatch(staff, up.id);
+    const result = batch.results[0]!;
+    expect(result.aiReport).toBeNull();
+
+    const seen: unknown[] = [];
+    const writer = async (input: unknown) => {
+      seen.push(input);
+      return {
+        model: "claude-opus-5-5",
+        summary: {
+          summary: "We found Giardia in Mochi's fecal sample. Share this with your vet.",
+          findings: [{ name: "Giardia", meaning: "A common parasite that is usually treatable." }],
+          nextSteps: ["Share the report with your vet.", "Pick up stool promptly."],
+          vetUrgency: "soon" as const,
+          vetReason: "Giardia is worth a conversation with your vet.",
+        },
+      };
+    };
+    const draft = await draftAiReport(staff, result.id, { writer });
+    expect(draft).toMatchObject({ version: 1, approved: false });
+    expect(seen[0]).toMatchObject({ petName: "Mochi", species: "cat", panel: "fecal" });
+    expect((await getLabBatch(staff, up.id)).results[0]!.aiReport).toMatchObject({ id: draft.id, approved: false });
+
+    await releaseLabResults(staff, { resultIds: [result.id] });
+    // Released, but the draft isn't shown to the customer.
+    expect((await getMyLabReport(customerCtx, kit.code!))!.aiSummary).toBeNull();
+
+    await expect(saveAiReport(staff, { reportId: draft.id, content: { ...draft.content, summary: "Bad — dash" }, approve: true })).rejects.toThrow(/dashes/);
+    const approved = await saveAiReport(staff, { reportId: draft.id, content: { ...draft.content, summary: "Edited by staff." }, approve: true });
+    expect(approved).toMatchObject({ version: 2, approved: true });
+    expect((await getMyLabReport(customerCtx, kit.code!))!.aiSummary?.summary).toBe("Edited by staff.");
+
+    // A newer draft doesn't hide the approved one.
+    await saveAiReport(staff, { reportId: approved.id, content: { ...approved.content, summary: "Work in progress." }, approve: false });
+    expect((await getMyLabReport(customerCtx, kit.code!))!.aiSummary?.summary).toBe("Edited by staff.");
   });
 });

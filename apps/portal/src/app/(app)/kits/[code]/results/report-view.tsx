@@ -51,6 +51,12 @@ const fmt = (d: Date | null) => (d ? shortDate.format(new Date(d)) : null);
 /** Lab Cq, or 40.0 ("none") when nothing amplified. */
 const ctText = (cq: number | null) => (cq ?? 40).toFixed(1);
 
+const VET_LABEL = {
+  routine: "Mention it at your next regular vet visit",
+  soon: "Book a vet visit in the next week or two",
+  promptly: "Contact your vet promptly",
+} as const;
+
 const HEADER_TINT = {
   oral: "rgba(168,85,247,0.3)",
   fecal: "rgba(245,158,11,0.3)",
@@ -86,7 +92,18 @@ function CtTile({ cq }: { cq: number | null }) {
   );
 }
 
-function PathogenCard({ p, petName, defaultOpen }: { p: CustomerPathogenResult; petName: string | null; defaultOpen: boolean }) {
+function PathogenCard({
+  p,
+  petName,
+  defaultOpen,
+  meaning = null,
+}: {
+  p: CustomerPathogenResult;
+  petName: string | null;
+  defaultOpen: boolean;
+  /** From the approved AI summary. */
+  meaning?: string | null;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   const detected = p.detected;
   const summary = firstSentence(p.whatIsIt);
@@ -131,6 +148,12 @@ function PathogenCard({ p, petName, defaultOpen }: { p: CustomerPathogenResult; 
           ) : (
             <CtTile cq={p.cq} />
           )}
+          {meaning ? (
+            <div className="rounded-xl bg-[#F4F0FF] p-3">
+              <Eyebrow>What this means for {petName ? truncName(petName) : "your pet"}</Eyebrow>
+              <p className="mt-1 text-sm leading-5 text-[#1E2228]">{meaning}</p>
+            </div>
+          ) : null}
           {p.whatIsIt ? (
             <div>
               <Eyebrow>What is it</Eyebrow>
@@ -280,8 +303,26 @@ function CareTab({ report }: { report: CustomerLabReport }) {
     { title: "Available right now", body: "No waiting room. Connect in minutes." },
     { title: "Can prescribe*", body: CAN_PRESCRIBE[report.panel] },
   ];
+  const ai = report.aiSummary;
+  const steps = ai?.nextSteps.map((x) => x.trim()).filter(Boolean) ?? [];
   return (
     <div className="space-y-4">
+      {ai && steps.length ? (
+        <section className="rounded-[18px] bg-white p-5">
+          <h2 className="font-display text-2xl text-[#1F2937]">Your next steps</h2>
+          <ol className="mt-3 space-y-3">
+            {steps.map((step, i) => (
+              <li key={i} className="flex gap-3 text-sm leading-5 text-[#1E2228]">
+                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#F2ECFF] text-xs font-bold text-[#5B3FA8]">{i + 1}</span>
+                {step}
+              </li>
+            ))}
+          </ol>
+          <p className="mt-4 rounded-xl bg-[#F9F8F5] px-4 py-3 text-sm text-[#1E2228]">
+            <strong>{VET_LABEL[ai.vetUrgency]}.</strong> {ai.vetReason}
+          </p>
+        </section>
+      ) : null}
       <AskAVet petName={pet} />
       <section className="rounded-2xl border-2 border-[#EAE0FF] bg-[#F4F0FF] p-5">
         <h2 className="font-display text-2xl leading-tight text-[#5B21B6]">Get a personalized plan from a licensed vet</h2>
@@ -334,7 +375,9 @@ export function ReportView({ report }: { report: CustomerLabReport }) {
   const clean = report.status === "clean";
   const total = report.detected.length + report.notDetected.length;
   const panelTitle = PANEL_TITLE[report.panel];
-  const [lead, rest] = heroBody(clean, report.detected.length, pet.name);
+  const ai = report.aiSummary;
+  const [lead, rest] = ai ? [ai.summary, ""] : heroBody(clean, report.detected.length, pet.name);
+  const meaningFor = (name: string) => ai?.findings.find((f) => f.name.toLowerCase() === name.toLowerCase())?.meaning ?? null;
   const meta = [pet.breed, formatAge(pet.dateOfBirth), formatWeight(pet.weightLbs), formatSex(pet.sex)].filter(Boolean).join(" · ");
   const collected = fmt(report.journey.collectedAt);
 
@@ -416,8 +459,12 @@ export function ReportView({ report }: { report: CustomerLabReport }) {
                   <h2 className="mt-3 font-display text-[32px] leading-tight">{heroTitle(clean, pet.name)}</h2>
                   <p className="mt-3 text-sm leading-5">
                     {lead}
-                    <br />
-                    {rest}
+                    {rest ? (
+                      <>
+                        <br />
+                        {rest}
+                      </>
+                    ) : null}
                   </p>
                   <VetLink className="mx-auto mt-5 flex h-10 w-fit items-center gap-2 rounded-full bg-white/25 px-5 text-sm font-semibold text-[#FFFDFA]">
                     {heroButton(clean)} <ArrowRight className="size-4" aria-hidden />
@@ -447,7 +494,7 @@ export function ReportView({ report }: { report: CustomerLabReport }) {
                     </p>
                     <ul className="mt-4 space-y-3">
                       {report.detected.map((p) => (
-                        <PathogenCard key={p.name} p={p} petName={pet.name} defaultOpen />
+                        <PathogenCard key={p.name} p={p} petName={pet.name} defaultOpen meaning={meaningFor(p.name)} />
                       ))}
                       {report.notDetected.map((p) => (
                         <PathogenCard key={p.name} p={p} petName={pet.name} defaultOpen={false} />

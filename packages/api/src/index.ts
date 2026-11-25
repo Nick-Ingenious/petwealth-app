@@ -1,4 +1,5 @@
 export * from "./audit";
+export * from "./services/ai-reports";
 export * from "./config";
 export * from "./context";
 export * from "./errors";

@@ -9,6 +9,8 @@ import { AssignForm } from "./assign-form";
 import { ReviewTable } from "./review-table";
 
 export const metadata = { title: "Lab run" };
+// Writing an AI summary can take up to a minute.
+export const maxDuration = 120;
 
 export default async function LabBatchPage({ params }: PageProps<"/lab-results/[id]">) {
   const staff = await requireStaff("lab_results.view");

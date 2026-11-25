@@ -90,11 +90,26 @@ function Report({ r, logo }: { r: CustomerLabReport; logo: Buffer | null }) {
             <Text style={[s.pill, { backgroundColor: clear ? C.clear : C.lilac }]}>{clear ? "Clear" : "Needs attention"}</Text>
           </View>
           <Text style={{ marginTop: 8 }}>
-            {clear
-              ? `None of the ${total} pathogens on this ${panel.toLowerCase()} panel were found.`
-              : `We found ${r.detected.map((d) => d.name).join(", ")}. Share this report with your vet so you can decide on next steps together.`}
+            {r.aiSummary
+              ? r.aiSummary.summary
+              : clear
+                ? `None of the ${total} pathogens on this ${panel.toLowerCase()} panel were found.`
+                : `We found ${r.detected.map((d) => d.name).join(", ")}. Share this report with your vet so you can decide on next steps together.`}
           </Text>
         </View>
+
+        {r.aiSummary && r.aiSummary.nextSteps.some((x) => x.trim()) ? (
+          <View wrap={false}>
+            <Text style={s.h2}>Your next steps</Text>
+            {r.aiSummary.nextSteps
+              .map((x) => x.trim())
+              .filter(Boolean)
+              .map((step, i) => (
+                <Text key={i} style={{ marginBottom: 3 }}>{`${i + 1}. ${step}`}</Text>
+              ))}
+            <Text style={{ marginTop: 4, color: C.ink2 }}>{r.aiSummary.vetReason}</Text>
+          </View>
+        ) : null}
 
         {r.detected.length ? (
           <>
