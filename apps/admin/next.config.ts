@@ -18,6 +18,8 @@ const config: NextConfig = {
   transpilePackages: ["@petwealth/api", "@petwealth/db", "@petwealth/domain", "@petwealth/integrations", "@petwealth/ui"],
   poweredByHeader: false,
   typedRoutes: true,
+  // Lab exports are sent to a server action as text (about 110 KB per plate).
+  experimental: { serverActions: { bodySizeLimit: "6mb" } },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

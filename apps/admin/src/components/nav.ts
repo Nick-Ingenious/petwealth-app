@@ -24,8 +24,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
     section: "Lab",
     items: [
       { href: "/receive", label: "Receive Kits", icon: "receive", permission: "kits.receive" },
-      { href: "/lab-results", label: "Lab Results", icon: "results", permission: "lab_results.view", soon: true },
-      { href: "/lab-upload", label: "Lab Upload", icon: "upload", permission: "lab_results.upload", soon: true },
+      { href: "/lab-results", label: "Lab Results", icon: "results", permission: "lab_results.view" },
       { href: "/reruns", label: "Rerun Queue", icon: "rerun", permission: "reruns.manage", soon: true },
       { href: "/tracking", label: "Kit Tracking", icon: "tracking", permission: "tracking.manage", soon: true },
     ],

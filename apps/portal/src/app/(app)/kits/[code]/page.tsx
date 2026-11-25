@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, BookOpen, Check, Lightbulb, TestTube2 } from "lucide-react";
-import { AppError, getMyKit, type JourneyStep } from "@petwealth/api";
+import { AppError, getMyKit, getMyLabReport, type JourneyStep } from "@petwealth/api";
 import { DROP_OFF_WITHIN_DAYS, PANEL_LABEL } from "@petwealth/domain";
 import { cn } from "@petwealth/ui";
 import { Header, KitImage, Screen } from "@/components/brand";
@@ -76,6 +76,7 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
     throw e;
   });
   const petName = kit.pet?.name ?? "your pet";
+  const hasReport = kit.status === "completed" && (await getMyLabReport(ctx, kit.code)) !== null;
   const guide = COLLECT[kit.panel];
   const state = (s: JourneyStep): "done" | "current" | "todo" => (kit.journey.done.includes(s) ? "done" : kit.journey.step === s ? "current" : "todo");
   // Packing and shipping happen together once the sample is collected.
@@ -183,10 +184,18 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
           <h3 className="text-2xl font-semibold">{kit.status === "completed" ? `${petName}'s results are ready` : `Awaiting ${petName}'s test results`}</h3>
           <p className="mt-1 text-lg text-zinc-600">
             {kit.status === "completed"
-              ? "Your report is available in your dashboard."
+              ? "Your report is ready to view."
               : `${petName}'s report will appear in your dashboard.`}
           </p>
           {kit.journey.step === "results" && kit.status !== "completed" ? <p className="mt-2 text-zinc-500">Current status: {kit.statusLabel}</p> : null}
+          {hasReport ? (
+            <Link
+              href={`/kits/${kit.code}/results`}
+              className="mt-4 flex h-14 items-center justify-center gap-2 rounded-full bg-lilac-300 text-lg font-semibold"
+            >
+              View results <ArrowRight className="size-5" aria-hidden />
+            </Link>
+          ) : null}
         </Step>
       </ol>
 

@@ -26,7 +26,17 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { KIT_STATUSES, PANELS, ROLE_KEYS, SPECIES, TEST_TYPES } from "@petwealth/domain";
+import {
+  KIT_STATUSES,
+  PANELS,
+  ROLE_KEYS,
+  SPECIES,
+  TEST_TYPES,
+  type ControlReading,
+  type RunControl,
+  type SampleGroup,
+  type TargetResult,
+} from "@petwealth/domain";
 
 // ── Enums ──────────────────────────────────────────────────────────────
 export const speciesEnum = pgEnum("species", SPECIES);
@@ -51,6 +61,8 @@ export const shipmentStatusEnum = pgEnum("shipment_status", [
   "voided",
 ]);
 export const labBatchStatusEnum = pgEnum("lab_batch_status", ["uploaded", "reviewed", "released", "rejected"]);
+/** pending: waiting for staff review. released: customer can see it. rerun: held, sample re-run. discarded: replaced or not used. */
+export const labResultStatusEnum = pgEnum("lab_result_status", ["pending", "released", "rerun", "discarded"]);
 export const healthStatusEnum = pgEnum("health_status", ["clean", "needs_attention", "critical"]);
 export const rerunStatusEnum = pgEnum("rerun_status", ["active", "escalated", "resolved"]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["sms", "email", "push"]);
@@ -330,6 +342,13 @@ export const labBatches = pgTable("lab_batches", {
   filename: text().notNull(),
   blobUrl: text(),
   status: labBatchStatusEnum().notNull().default("uploaded"),
+  rowCount: integer().notNull().default(0),
+  /** Positive / negative control checks per panel. */
+  runControls: jsonb().$type<RunControl[]>().notNull().default([]),
+  /** Samples whose code didn't match a kit (typos, unknown kits). Staff can assign them. */
+  unmatched: jsonb().$type<(SampleGroup & { reason: string })[]>().notNull().default([]),
+  /** The uploaded file, kept for traceability. */
+  sourceCsv: text(),
   uploadedById: uuid().references(() => staffUsers.id),
   releasedById: uuid().references(() => staffUsers.id),
   releasedAt: timestamp({ withTimezone: true }),
@@ -344,15 +363,30 @@ export const labResults = pgTable(
       .notNull()
       .references(() => kits.id, { onDelete: "restrict" }),
     batchId: uuid().references(() => labBatches.id, { onDelete: "set null" }),
+    status: labResultStatusEnum().notNull().default("pending"),
     healthStatus: healthStatusEnum(),
+    /** Sample name as written in the lab file. */
+    sample: text(),
+    panelCode: text(),
+    targets: jsonb().$type<TargetResult[]>().notNull().default([]),
+    controls: jsonb().$type<ControlReading[]>().notNull().default([]),
+    /** Review warnings from the upload (omitted wells, failed controls, ...). */
+    flags: jsonb().$type<string[]>().notNull().default([]),
     /** Parsed lab row(s), stored verbatim for traceability. */
     raw: jsonb().$type<Record<string, unknown>>().notNull(),
+    reviewedById: uuid().references(() => staffUsers.id),
+    reviewedAt: timestamp({ withTimezone: true }),
     pdfUrl: text(),
     reportedAt: timestamp({ withTimezone: true }).notNull(),
     releasedAt: timestamp({ withTimezone: true }),
     ...timestamps,
   },
-  (t) => [index("lab_results_kit_idx").on(t.kitId), index("lab_results_health_idx").on(t.healthStatus)],
+  (t) => [
+    index("lab_results_kit_idx").on(t.kitId),
+    index("lab_results_batch_idx").on(t.batchId),
+    index("lab_results_status_idx").on(t.status),
+    index("lab_results_health_idx").on(t.healthStatus),
+  ],
 );
 
 export const aiReports = pgTable("ai_reports", {
@@ -491,6 +525,10 @@ export const shipmentLabelsRelations = relations(shipmentLabels, ({ one }) => ({
 }));
 export const labResultsRelations = relations(labResults, ({ one }) => ({
   kit: one(kits, { fields: [labResults.kitId], references: [kits.id] }),
+  batch: one(labBatches, { fields: [labResults.batchId], references: [labBatches.id] }),
+}));
+export const labBatchesRelations = relations(labBatches, ({ many }) => ({
+  results: many(labResults),
 }));
 export const addressesRelations = relations(addresses, ({ one }) => ({
   customer: one(customers, { fields: [addresses.customerId], references: [customers.id] }),
