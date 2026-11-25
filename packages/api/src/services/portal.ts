@@ -152,6 +152,18 @@ export async function getPortalHome(ctx: CustomerContext) {
       },
     }),
   ]);
+  // Kits whose lab results have been released, so the home list can open the report directly.
+  const completedIds = kits.filter((k) => k.status === "completed").map((k) => k.id);
+  const withResults = new Set(
+    completedIds.length
+      ? (
+          await db
+            .selectDistinct({ kitId: s.labResults.kitId })
+            .from(s.labResults)
+            .where(and(inArray(s.labResults.kitId, completedIds), eq(s.labResults.status, "released")))
+        ).map((r) => r.kitId)
+      : [],
+  );
   const shape = (k: (typeof kits)[number]) => ({
     id: k.id,
     code: k.code!,
@@ -160,6 +172,9 @@ export async function getPortalHome(ctx: CustomerContext) {
     status: k.status,
     statusLabel: KIT_STATUS_META[k.status].label,
     statusChangedAt: k.statusChangedAt,
+    activatedAt: k.activatedAt,
+    completedAt: k.completedAt,
+    hasResults: withResults.has(k.id),
     pet: k.pet,
     journey: journeyStepFor(k.status),
     mailer: k.shipmentLinks.map((l) => l.shipment).filter((x) => x.direction === "return").sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null,
