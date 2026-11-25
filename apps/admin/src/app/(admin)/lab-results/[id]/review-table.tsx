@@ -7,6 +7,7 @@ import type { getLabBatch } from "@petwealth/api";
 import { KIT_STATUS_META, kitDisplayName } from "@petwealth/domain";
 import { Badge, Button, Input, KitStatusBadge, TBody, TD, TH, THead, TR, Table } from "@petwealth/ui";
 import { releaseResultsAction, rerunResultAction } from "../actions";
+import { AiSummaryPanel } from "./ai-summary";
 
 type Result = Awaited<ReturnType<typeof getLabBatch>>["results"][number];
 
@@ -169,6 +170,9 @@ export function ReviewTable({ batchId, results, canRelease }: { batchId: string;
                       {r.healthStatus ? (
                         <p className="text-xs text-ink-muted">{r.healthStatus === "clean" ? "Clean" : "Needs attention"}</p>
                       ) : null}
+                      {r.aiReport ? (
+                        <p className="text-xs text-ink-muted">{r.aiReport.approved ? "Summary approved" : "Summary draft"}</p>
+                      ) : null}
                     </TD>
                     <TD className="whitespace-nowrap text-right">
                       {canAct ? (
@@ -258,6 +262,9 @@ export function ReviewTable({ batchId, results, canRelease }: { batchId: string;
                               <span className="text-ink-muted"> · {KIT_STATUS_META[r.kitStatus].description}</span>
                             </p>
                           </div>
+                        </div>
+                        <div className="mt-4">
+                          <AiSummaryPanel batchId={batchId} resultId={r.id} report={r.aiReport} canEdit={canRelease} />
                         </div>
                       </td>
                     </tr>

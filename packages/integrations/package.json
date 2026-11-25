@@ -3,11 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Third-party adapters (Shopify, FedEx, Resend email; later Twilio/lab). Pure parsing + verification; no database access.",
+  "description": "Third-party adapters (Shopify, FedEx, Resend email, Claude lab summaries; later Twilio/lab). Pure parsing + verification; no database access.",
   "exports": {
     "./shopify": "./src/shopify/index.ts",
     "./carrier": "./src/carrier/index.ts",
-    "./email": "./src/email/index.ts"
+    "./email": "./src/email/index.ts",
+    "./ai": "./src/ai/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -15,6 +16,7 @@
     "shopify:send": "tsx scripts/send-shopify-webhook.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.8.0",
     "@petwealth/domain": "workspace:*",
     "qrcode": "^1.5.4",
     "zod": "^4.6.7"

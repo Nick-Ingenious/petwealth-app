@@ -20,6 +20,7 @@ import { z } from "zod";
 import { recordEvent } from "../audit";
 import { actorFields, requirePermission, type CustomerContext, type StaffContext } from "../context";
 import { AppError, conflict, invalid, notFound } from "../errors";
+import { approvedAiSummary, latestAiReports, type LabSummary } from "./ai-reports";
 import { changeKitStatus } from "./kits";
 
 type KitRow = typeof s.kits.$inferSelect;
@@ -230,7 +231,8 @@ export async function getLabBatch(ctx: StaffContext, id: string) {
     .leftJoin(s.customers, eq(s.kits.customerId, s.customers.id))
     .where(and(eq(s.labResults.batchId, id), ne(s.labResults.status, "discarded")))
     .orderBy(s.kits.code);
-  return { ...batch, uploadedBy: uploader?.email ?? null, results };
+  const reports = await latestAiReports(results.map((r) => r.id));
+  return { ...batch, uploadedBy: uploader?.email ?? null, results: results.map((r) => ({ ...r, aiReport: reports.get(r.id) ?? null })) };
 }
 
 // ── Release / rerun ────────────────────────────────────────────────────
@@ -379,6 +381,8 @@ export interface CustomerLabReport {
   };
   detected: CustomerPathogenResult[];
   notDetected: CustomerPathogenResult[];
+  /** Staff-approved AI summary, when there is one. */
+  aiSummary: LabSummary | null;
   /** Kept for the PDF and older callers. */
   petName: string | null;
 }
@@ -447,5 +451,6 @@ export async function getMyLabReport(ctx: CustomerContext, rawCode: string): Pro
     },
     detected: items.filter((i) => i.detected).sort(byName),
     notDetected: items.filter((i) => !i.detected).sort(byName),
+    aiSummary: await approvedAiSummary(row.result.id),
   };
 }
