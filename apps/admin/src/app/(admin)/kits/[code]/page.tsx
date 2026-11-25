@@ -10,6 +10,12 @@ import { requireStaff } from "@/lib/auth";
 import { formatDateTime, fullName, kitName, orderRef } from "@/lib/format";
 import { StatusForm } from "./status-form";
 
+const RESULT_STATUS = {
+  pending: ["warning", "To review"],
+  released: ["success", "Released"],
+  rerun: ["danger", "Rerun"],
+  discarded: ["neutral", "Replaced"],
+} as const;
 const HEALTH = { clean: ["success", "Clean"], needs_attention: ["warning", "Needs attention"], critical: ["danger", "Critical"] } as const;
 
 export default async function KitDetail({ params }: PageProps<"/kits/[code]">) {
@@ -83,9 +89,16 @@ export default async function KitDetail({ params }: PageProps<"/kits/[code]">) {
             <CardBody className="space-y-2 text-sm">
               {kit.labResults.length === 0 ? <p className="text-ink-muted">No results yet.</p> : null}
               {kit.labResults.map((r) => (
-                <div key={r.id} className="flex items-center justify-between">
-                  <span className="text-ink-muted">{formatDateTime(r.reportedAt)}</span>
-                  {r.healthStatus ? <Badge tone={HEALTH[r.healthStatus][0]}>{HEALTH[r.healthStatus][1]}</Badge> : <Badge tone="warning">Held</Badge>}
+                <div key={r.id} className="flex items-center justify-between gap-2">
+                  {r.batchId ? (
+                    <Link href={`/lab-results/${r.batchId}`} className="text-brand-700 hover:underline">{formatDateTime(r.reportedAt)}</Link>
+                  ) : (
+                    <span className="text-ink-muted">{formatDateTime(r.reportedAt)}</span>
+                  )}
+                  <span className="flex gap-1">
+                    {r.status !== "released" ? <Badge tone={RESULT_STATUS[r.status][0]}>{RESULT_STATUS[r.status][1]}</Badge> : null}
+                    {r.healthStatus ? <Badge tone={HEALTH[r.healthStatus][0]}>{HEALTH[r.healthStatus][1]}</Badge> : null}
+                  </span>
                 </div>
               ))}
             </CardBody>

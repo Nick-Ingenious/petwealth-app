@@ -6,3 +6,5 @@ export * from "./money";
 export * from "./rbac";
 export * from "./shipping";
 export * from "./validators";
+export * from "./lab-results";
+export * from "./pathogens";
