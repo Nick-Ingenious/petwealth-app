@@ -344,9 +344,13 @@ export async function holdLabResultForRerun(ctx: StaffContext, input: z.input<ty
 export interface CustomerPathogenResult {
   name: string;
   commonName: string | null;
+  tagName: string | null;
   detected: boolean;
+  /** Lab Cq; null when nothing amplified (shown as 40.0, "none"). */
+  cq: number | null;
   whatIsIt: string | null;
   whyItMatters: string | null;
+  impact: string | null;
   symptoms: string[] | null;
   zoonotic: boolean | null;
 }
@@ -355,19 +359,37 @@ export interface CustomerLabReport {
   kitCode: string;
   species: "dog" | "cat";
   panel: "fecal" | "respiratory" | "oral";
-  petName: string | null;
+  pet: {
+    name: string | null;
+    breed: string | null;
+    dateOfBirth: string | null;
+    weightLbs: number | null;
+    sex: "male" | "female" | "unknown" | null;
+    photoUrl: string | null;
+  };
   status: "clean" | "needs_attention";
   releasedAt: Date;
+  /** When the kit reached each step, from its status history. */
+  journey: {
+    activatedAt: Date | null;
+    collectedAt: Date | null;
+    inTransitAt: Date | null;
+    receivedAt: Date | null;
+    completedAt: Date | null;
+  };
   detected: CustomerPathogenResult[];
   notDetected: CustomerPathogenResult[];
+  /** Kept for the PDF and older callers. */
+  petName: string | null;
 }
 
 /** The newest released result for one of the customer's kits, or null when none is released yet. */
 export async function getMyLabReport(ctx: CustomerContext, rawCode: string): Promise<CustomerLabReport | null> {
   const code = parseKitCode(rawCode)?.code;
   if (!code) return null;
-  const [row] = await getDb()
-    .select({ result: s.labResults, kit: s.kits, petName: s.pets.name })
+  const db = getDb();
+  const [row] = await db
+    .select({ result: s.labResults, kit: s.kits, pet: s.pets })
     .from(s.labResults)
     .innerJoin(s.kits, eq(s.labResults.kitId, s.kits.id))
     .leftJoin(s.pets, eq(s.kits.petId, s.pets.id))
@@ -375,26 +397,54 @@ export async function getMyLabReport(ctx: CustomerContext, rawCode: string): Pro
     .orderBy(desc(s.labResults.releasedAt))
     .limit(1);
   if (!row) return null;
+
+  // First time the kit entered each status.
+  const history = await db
+    .select({ to: sql<string>`${s.events.payload}->>'to'`, at: sql<Date>`min(${s.events.occurredAt})`.mapWith((v) => new Date(v)) })
+    .from(s.events)
+    .where(and(eq(s.events.entityType, "kit"), eq(s.events.entityId, row.kit.id), eq(s.events.type, "kit.status_changed")))
+    .groupBy(sql`${s.events.payload}->>'to'`);
+  const at = (status: string) => history.find((h) => h.to === status)?.at ?? null;
+
   const items = row.result.targets.map((t): CustomerPathogenResult => {
     const info = pathogenInfo(t.labCode);
     return {
       name: info?.name ?? t.name,
       commonName: info?.commonName && info.commonName !== info.name ? info.commonName : null,
+      tagName: info?.tagName && info.tagName !== info.name ? info.tagName : null,
       detected: t.call === "detected",
+      cq: t.cq,
       whatIsIt: info?.whatIsIt ?? null,
       whyItMatters: info?.whyItMatters ?? null,
+      impact: info?.impact ?? null,
       symptoms: info?.symptoms ?? null,
       zoonotic: info?.zoonotic ?? null,
     };
   });
   const byName = (a: CustomerPathogenResult, b: CustomerPathogenResult) => a.name.localeCompare(b.name);
+  const pet = row.pet;
   return {
     kitCode: code,
     species: row.kit.species,
     panel: row.kit.panel,
-    petName: row.petName,
+    petName: pet?.name ?? null,
+    pet: {
+      name: pet?.name ?? null,
+      breed: pet?.breed ?? null,
+      dateOfBirth: pet?.dateOfBirth ?? null,
+      weightLbs: pet?.weightLbs ?? null,
+      sex: pet?.sex ?? null,
+      photoUrl: pet?.photoUrl ?? null,
+    },
     status: items.some((i) => i.detected) ? "needs_attention" : "clean",
     releasedAt: row.result.releasedAt!,
+    journey: {
+      activatedAt: row.kit.activatedAt ?? at("activated"),
+      collectedAt: at("sample_collected"),
+      inTransitAt: at("in_transit"),
+      receivedAt: row.kit.receivedAt ?? at("received_at_lab"),
+      completedAt: row.kit.completedAt ?? at("completed"),
+    },
     detected: items.filter((i) => i.detected).sort(byName),
     notDetected: items.filter((i) => !i.detected).sort(byName),
   };

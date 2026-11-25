@@ -4,7 +4,17 @@
 @source "../../../../packages/ui/src";
 
 /* Portal look: warm paper background, ink-navy actions, lavender highlights. */
+/* Creolia: Petwealth display serif (from the brand files). Headlines and big numbers only. */
+@font-face {
+  font-family: "Creolia";
+  src: url("/fonts/Creolia.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
+  --font-display: "Creolia", Georgia, serif;
   --color-canvas: #f8f6f2;
   --color-ink: #1b2330;
   --color-lilac-100: #efeafe;
