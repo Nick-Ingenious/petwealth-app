@@ -25,7 +25,7 @@ export function SyncShippingButton({ configured }: { configured: boolean }) {
           {result.ok
             ? `Checked ${result.data.checked} orders: ${result.data.kitsShipped} kits shipped, ${result.data.kitsDelivered} delivered.${
                 result.data.remaining ? ` ${result.data.remaining} orders left, run it again.` : ""
-              }${result.data.errors.length ? ` ${result.data.errors.length} orders failed.` : ""}`
+              }${result.data.errors.length ? ` ${result.data.errors.length} orders failed, e.g. ${result.data.errors[0]}` : ""}`
             : result.error}
         </p>
       ) : null}

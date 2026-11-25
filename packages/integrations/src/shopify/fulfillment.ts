@@ -98,6 +98,10 @@ export function normalizeShopifyFulfillment(payload: unknown): NormalizedFulfill
 
 // ── Admin GraphQL (backfill) ───────────────────────────────────────────
 
+/**
+ * Only fields covered by read_orders + read_fulfillments. (LineItem.variant
+ * needs read_products; kits are matched by line item id, SKU or title instead.)
+ */
 export const ORDER_FULFILLMENTS_QUERY = /* GraphQL */ `
   query OrderFulfillments($id: ID!) {
     order(id: $id) {
@@ -111,7 +115,7 @@ export const ORDER_FULFILLMENTS_QUERY = /* GraphQL */ `
         updatedAt
         trackingInfo(first: 1) { company number url }
         fulfillmentLineItems(first: 50) {
-          nodes { quantity lineItem { id sku title variant { id } } }
+          nodes { quantity lineItem { id sku title } }
         }
       }
     }
