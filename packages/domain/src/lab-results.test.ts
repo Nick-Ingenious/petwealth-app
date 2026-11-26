@@ -83,3 +83,64 @@ describe("parseLabRun", () => {
     expect(() => parseLabRun("name,email\nx,y")).toThrow(LabFileError);
   });
 });
+
+describe("cleanup of messy lab files", () => {
+  const H = "Well,Omit,Target,Sample,Cq,Dyes,Cq Conf,Amp Score,Task,Amp Status,Annotated,Threshold,Baseline Start,Baseline End,Curve Quality,Result Quality Issues";
+  const row = (well: string, target: string, sample: string, cq: string, amp = cq ? "Amp" : "No Amp") => `${well},false,${target},${sample},${cq},FAM,,,UNKNOWN,${amp},,,,,,`;
+  const file = [
+    H,
+    row("A1", "Giardia spp._FGI", " ffec-004-926 ", "30.1"),
+    row("A2", "NADH_FGI", " ffec-004-926 ", "25.0"),
+    row("A3", "FGI Extraction Control_FGI", " ffec-004-926 ", "27.0"),
+    row("A4", "Spike-in Control_FGI", " ffec-004-926 ", "22.0"),
+    row("A5", "New Marker_FGI", " ffec-004-926 ", ""),
+    row("B1", "Giardia spp._FGI", "Positive Control", "24.0"),
+    row("B2", "Giardia spp._FGI", "Negative Control", ""),
+    row("C1", "Giardia spp._CGI", "", "31.0"),
+    row("C2", "Toxocara canis_CGI", "", ""),
+    row("D1", "Microsporum canis_RWP", "", "29.0"),
+  ].join("\n");
+
+  it("uppercases kit IDs and keeps plate controls out of the samples", () => {
+    const run = parseLabRun(file);
+    expect(run.samples.map((s) => s.kitCode)).toEqual(["FFEC-004-926"]);
+    expect(run.runControls.map((c) => `${c.kind}:${c.passed}`)).toEqual(["positive:true", "negative:true"]);
+  });
+
+  it("only counts targets on the panel list, and flags a detected one that isn't", () => {
+    const s = parseLabRun(file).samples[0]!;
+    expect(s.targets.map((t) => t.name)).toEqual(["Giardia spp."]);
+    expect(s.controls.map((c) => c.name)).toEqual(["NADH", "FGI Extraction Control"]);
+    expect(s.ignoredTargets).toEqual(["New Marker", "Spike-in Control"]);
+    expect(s.flags).toEqual([
+      "Spike-in Control isn't on the FGI panel list, so it was left out (Cq 22.00). If it's a real pathogen, it needs adding to the panel list.",
+    ]);
+  });
+
+  it("holds rows with no kit ID by panel, never guessing a kit", () => {
+    const run = parseLabRun(file);
+    expect(run.held).toEqual([
+      { panelCode: "CGI", kitPrefix: "CFEC", wells: ["C1", "C2"], rowCount: 2, detected: ["Giardia spp."] },
+      { panelCode: "RWP", kitPrefix: null, wells: ["D1"], rowCount: 1, detected: ["Microsporum canis"] },
+    ]);
+    expect(run.cleanup).toEqual({ idsNormalized: 1, plateControlRows: 2, qualityCheckRows: 2, offPanelRows: 2, heldRows: 3 });
+  });
+
+  it("accepts a file that only has held rows", () => {
+    expect(parseLabRun([H, row("C1", "Giardia spp._CGI", "", "31.0")].join("\n")).held).toHaveLength(1);
+  });
+});
+
+describe("suggestKitCode", () => {
+  it("fixes missing dashes, spaces and look-alike characters", () => {
+    expect(suggestKitCode("FFEC004926")).toBe("FFEC-004-926");
+    expect(suggestKitCode("ffec 004 926")).toBe("FFEC-004-926");
+    expect(suggestKitCode("FFEC-0O4-926")).toBe("FFEC-004-926");
+    expect(suggestKitCode("FRES_1I8_302")).toBe("FRES-118-302");
+  });
+  it("still fixes one extra character, and gives up on anything else", () => {
+    expect(suggestKitCode("FFFEC-002-586")).toBe("FFEC-002-586");
+    expect(suggestKitCode("Sample 12")).toBeNull();
+    expect(suggestKitCode("ZZZZ-000-000")).toBeNull();
+  });
+});

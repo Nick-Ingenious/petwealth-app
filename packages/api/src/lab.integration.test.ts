@@ -10,7 +10,9 @@ import { and, eq, getDb, schema as s } from "@petwealth/db";
 import type { CustomerContext, StaffContext } from "./context";
 import { freshKitCodes } from "./test-kit-codes";
 import { draftAiReport, saveAiReport } from "./services/ai-reports";
+import { reviewLabBatch, type LabRunReviewWriter } from "./services/lab-review";
 import {
+  dismissHeldRows,
   assignUnmatchedSample,
   getLabBatch,
   getMyLabReport,
@@ -68,6 +70,77 @@ async function setup() {
 describe.skipIf(!run)("lab results (db)", () => {
   afterAll(async () => {
     await getDb().$client.end();
+  });
+
+  it("cleans a messy file, holds rows with no kit ID, and only offers checked AI suggestions", async () => {
+    const { staff, kits } = await setup();
+    const [messy, misformatted] = kits as [(typeof kits)[0], (typeof kits)[0]];
+    const noDashes = misformatted.code!.replace(/-/g, ""); // e.g. FFEC850123
+    const blank = (target: string, cq: string) => row(target, "", cq, cq === "Undetermined" ? "No Amp" : "Amp");
+    const csv = [
+      HEADER,
+      ...fecal(`  ${messy.code!.toLowerCase()} `, "27.5"),
+      row("NADH_FGI", messy.code!.toLowerCase(), "24", "Amp"),
+      row("Spike-in Control_FGI", messy.code!.toLowerCase(), "22", "Amp"),
+      ...fecal(noDashes, "Undetermined"),
+      blank("Giardia spp._CGI", "31"),
+      blank("Microsporum canis_RWP", "29"),
+      row("Giardia spp._FGI", "Positive Control", "25", "Amp"),
+      row("Giardia spp._FGI", "Negative Control", "Undetermined", "No Amp"),
+    ].join("\n");
+
+    const up = await uploadLabFile(staff, { filename: "WellResult-messy.csv", csv });
+    expect(up).toMatchObject({ matched: 1, unmatched: 1, heldRows: 2 });
+    expect(up.cleanup).toEqual({ idsNormalized: 1, plateControlRows: 2, qualityCheckRows: 3, offPanelRows: 1, heldRows: 2 }); // 2 extraction controls + NADH
+
+    let batch = await getLabBatch(staff, up.id);
+    const result = batch.results[0]!;
+    expect(result.kitCode).toBe(messy.code);
+    expect(result.targets.map((x) => x.name)).toEqual(["Giardia spp.", "Salmonella spp."]); // no NADH, no Spike-in
+    expect(result.flags.some((f) => f.startsWith("Spike-in Control isn't on the FGI panel list"))).toBe(true);
+    expect(batch.held.map((h) => [h.panelCode, h.kitPrefix])).toEqual([["CGI", "CFEC"], ["RWP", null]]);
+
+    // AI review: one good suggestion, one for a kit that doesn't exist, one on the wrong panel.
+    let seen: Parameters<LabRunReviewWriter>[0] | null = null;
+    const writer: LabRunReviewWriter = async (input) => {
+      seen = input;
+      return {
+        model: "test/fake",
+        review: {
+          summary: "One sample is a kit ID without dashes; two rows have no kit ID.",
+          notes: [
+            { severity: "check", about: noDashes, message: `This is ${misformatted.code} without dashes.`, suggestedKitCode: misformatted.code! },
+            { severity: "check", about: noDashes, message: "Or maybe this one.", suggestedKitCode: "FFEC-000-000" },
+            { severity: "info", about: "CGI", message: "Rows with no kit ID look like a dog fecal kit.", suggestedKitCode: null },
+          ],
+        },
+      };
+    };
+    const review = await reviewLabBatch(staff, up.id, { writer });
+    expect(seen!.candidateKits.map((c) => c.code)).toContain(misformatted.code);
+    expect(seen!.candidateKits.map((c) => c.code)).not.toContain(messy.code); // already in this upload
+    expect(seen!.held.map((h) => h.panelCode)).toEqual(["CGI", "RWP"]);
+    expect(review.status).toBe("done");
+    expect(review.notes[0]!.suggestion).toEqual({ sample: noDashes, kitCode: misformatted.code });
+    expect(review.notes[1]!.suggestion).toBeNull();
+    expect(review.notes[1]!.message).toMatch(/couldn't be confirmed/);
+    expect(review.notes[2]!.suggestion).toBeNull();
+
+    // A failing writer is recorded, not thrown.
+    const failed = await reviewLabBatch(staff, up.id, { writer: async () => Promise.reject(new Error("Could not resolve authentication method. Expected the apiKey")) });
+    expect(failed).toMatchObject({ status: "unavailable", error: "AI review isn't set up here." });
+
+    // A person applies the suggestion; the upload only completes once held rows are set aside too.
+    await assignUnmatchedSample(staff, { batchId: up.id, sample: noDashes, kitCode: misformatted.code! });
+    batch = await getLabBatch(staff, up.id);
+    await releaseLabResults(staff, { resultIds: batch.results.map((r) => r.id) });
+    expect((await getLabBatch(staff, up.id)).status).toBe("uploaded"); // held rows still open
+    await dismissHeldRows(staff, { batchId: up.id, panelCode: "CGI" });
+    await dismissHeldRows(staff, { batchId: up.id, panelCode: "RWP" });
+    await expect(dismissHeldRows(staff, { batchId: up.id, panelCode: "RWP" })).rejects.toMatchObject({ status: 409 });
+    batch = await getLabBatch(staff, up.id);
+    expect(batch.status).toBe("released");
+    expect(batch.held.every((h) => h.dismissedBy === staff.email)).toBe(true);
   });
 
   it("uploads, releases, reruns and assigns mistyped samples", async () => {

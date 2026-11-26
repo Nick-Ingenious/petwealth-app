@@ -7,6 +7,8 @@ import { formatDateTime } from "@/lib/format";
 import { UploadForm } from "./upload-form";
 
 export const metadata = { title: "Lab Results" };
+/** Uploading starts the AI review right after the response (up to a minute or so). */
+export const maxDuration = 120;
 
 export default async function LabResultsPage() {
   const staff = await requireStaff("lab_results.view");

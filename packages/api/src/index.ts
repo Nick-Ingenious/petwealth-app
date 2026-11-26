@@ -8,6 +8,7 @@ export * from "./services/customers";
 export * from "./services/dashboard";
 export * from "./services/kits";
 export * from "./services/lab";
+export * from "./services/lab-review";
 export * from "./services/notifications";
 export * from "./services/texts";
 export * from "./sms/kit-texts";

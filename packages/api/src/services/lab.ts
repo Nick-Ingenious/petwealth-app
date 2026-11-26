@@ -105,7 +105,15 @@ export async function uploadLabFile(ctx: StaffContext, input: z.input<typeof lab
   return getDb().transaction(async (tx) => {
     const [batch] = await tx
       .insert(s.labBatches)
-      .values({ filename, sourceCsv: csv, rowCount: run.rowCount, runControls: run.runControls, uploadedById: ctx.staffId })
+      .values({
+        filename,
+        sourceCsv: csv,
+        rowCount: run.rowCount,
+        runControls: run.runControls,
+        held: run.held,
+        cleanup: run.cleanup,
+        uploadedById: ctx.staffId,
+      })
       .returning();
     const codes = run.samples.flatMap((x) => (x.kitCode ? [x.kitCode] : []));
     const kits = codes.length ? await tx.select().from(s.kits).where(inArray(s.kits.code, codes)).for("update") : [];
@@ -133,9 +141,9 @@ export async function uploadLabFile(ctx: StaffContext, input: z.input<typeof lab
       entityId: batch!.id,
       type: "lab_batch.uploaded",
       ...actorFields(ctx),
-      payload: { filename, rows: run.rowCount, matched, unmatched: unmatched.length },
+      payload: { filename, rows: run.rowCount, matched, unmatched: unmatched.length, held: run.cleanup.heldRows, cleanup: run.cleanup },
     });
-    return { id: batch!.id, number: batch!.number!, matched, unmatched: unmatched.length };
+    return { id: batch!.id, number: batch!.number!, matched, unmatched: unmatched.length, heldRows: run.cleanup.heldRows, cleanup: run.cleanup };
   });
 }
 
@@ -165,6 +173,32 @@ export async function assignUnmatchedSample(ctx: StaffContext, input: { batchId:
       .set({ unmatched: batch.unmatched.filter((u) => u.sample !== input.sample) })
       .where(eq(s.labBatches.id, batch.id));
     return result;
+  });
+}
+
+/**
+ * Set aside rows that had no kit ID (e.g. a panel Petwealth doesn't sell, or
+ * wells the lab will rerun with the kit ID filled in). Kept on the upload for
+ * the record; to import them, fix the Sample column and upload again.
+ */
+export async function dismissHeldRows(ctx: StaffContext, input: { batchId: string; panelCode: string }) {
+  requirePermission(ctx, "lab_results.upload");
+  if (!z.uuid().safeParse(input.batchId).success) throw notFound("Lab upload");
+  return getDb().transaction(async (tx) => {
+    const [batch] = await tx.select().from(s.labBatches).where(eq(s.labBatches.id, input.batchId)).for("update");
+    if (!batch) throw notFound("Lab upload");
+    const group = batch.held.find((h) => h.panelCode === input.panelCode && !h.dismissedAt);
+    if (!group) throw conflict("Those rows were already set aside. Refresh the page.");
+    const held = batch.held.map((h) => (h === group ? { ...h, dismissedBy: ctx.email, dismissedAt: new Date().toISOString() } : h));
+    await tx.update(s.labBatches).set({ held }).where(eq(s.labBatches.id, batch.id));
+    await recordEvent(tx, {
+      entityType: "lab_batch",
+      entityId: batch.id,
+      type: "lab_batch.held_rows_dismissed",
+      ...actorFields(ctx),
+      payload: { panelCode: group.panelCode, rows: group.rowCount, wells: group.wells },
+    });
+    await settleBatch(tx, batch.id);
   });
 }
 
@@ -253,8 +287,9 @@ async function settleBatch(tx: DbOrTx, batchId: string | null) {
     .select({ n: sql<number>`count(*)`.mapWith(Number) })
     .from(s.labResults)
     .where(and(eq(s.labResults.batchId, batchId), eq(s.labResults.status, "pending")));
-  const [batch] = await tx.select({ unmatched: s.labBatches.unmatched }).from(s.labBatches).where(eq(s.labBatches.id, batchId));
-  if (!left?.n && !batch?.unmatched.length) {
+  const [batch] = await tx.select({ unmatched: s.labBatches.unmatched, held: s.labBatches.held }).from(s.labBatches).where(eq(s.labBatches.id, batchId));
+  // Done once every result is reviewed, every sample has a kit, and held rows are set aside.
+  if (!left?.n && !batch?.unmatched.length && !batch?.held.some((h) => !h.dismissedAt)) {
     await tx.update(s.labBatches).set({ status: "released" }).where(eq(s.labBatches.id, batchId));
   }
 }

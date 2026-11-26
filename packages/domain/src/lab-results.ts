@@ -6,10 +6,20 @@
  * e.g. "Giardia spp._FGI". Each panel also runs internal controls (GAPDH,
  * NADH, extraction controls) that are not pathogens.
  *
+ * Cleanup the lab files need (they vary run to run), applied every time:
+ * - kit IDs are trimmed and uppercased ("ffec-004-926" is FFEC-004-926);
+ * - plate control wells (Positive / Negative Control) check the run as a
+ *   whole and never become patient results;
+ * - rows with no kit ID are held for a person, never guessed or dropped;
+ * - only targets on the kit's panel list count as results, so a new internal
+ *   control can't show up on a customer's report. A *detected* target that
+ *   isn't on the list is flagged, in case the lab renamed a real pathogen.
+ *
  * Pure functions only: the upload service matches the groups to kits.
  */
-import { parseKitCode, normalizeKitCode } from "./kit-code";
+import { parseKitCode, normalizeKitCode, formatKitCode } from "./kit-code";
 import type { Panel, Species } from "./catalog";
+import { pathogenInfo } from "./pathogens";
 
 /** A pathogen is "detected" when its Cq is at or below this. Same rule as the old app. */
 export const DETECTION_CQ_CUTOFF = 34;
@@ -83,6 +93,12 @@ export interface ControlReading {
   checked: boolean;
 }
 
+/** Kit ID prefix for a lab panel, e.g. CGI gives CFEC. Null for the shared oral panel (cat or dog) and unknown codes. */
+export function kitPrefixForPanel(code: string): string | null {
+  const p = (LAB_PANEL_CODES as Record<string, { species: Species | null; panel: Panel }>)[code.toUpperCase()];
+  return p?.species ? formatKitCode(p.species, p.panel, 0, 0).slice(0, 4) : null;
+}
+
 export interface SampleGroup {
   /** Sample text exactly as in the file (first occurrence). */
   sample: string;
@@ -94,8 +110,36 @@ export interface SampleGroup {
   targets: TargetResult[];
   controls: ControlReading[];
   detected: string[];
+  /** Targets left out because they aren't on the kit's panel list (e.g. a new internal control). */
+  ignoredTargets: string[];
   /** Things a reviewer should look at before releasing. Plain sentences. */
   flags: string[];
+}
+
+/** Rows with no kit ID in the Sample column, grouped by the panel code on their targets. Held for a person. */
+export interface HeldRows {
+  /** Panel code from the targets, e.g. "CGI"; "RWP" for a panel we don't have; "" when none. */
+  panelCode: string;
+  /** What the panel says the sample is, e.g. "CFEC" (canine fecal). Null when the panel isn't one of ours. */
+  kitPrefix: string | null;
+  wells: string[];
+  rowCount: number;
+  /** Targets at or below the cutoff in these rows. */
+  detected: string[];
+}
+
+/** What cleanup did to this file, for the upload page. */
+export interface LabCleanupSummary {
+  /** Kit IDs that needed trimming or uppercasing. */
+  idsNormalized: number;
+  /** Positive / Negative Control rows (checked as run controls). */
+  plateControlRows: number;
+  /** Internal quality-check rows (extraction controls, NADH, GAPDH). */
+  qualityCheckRows: number;
+  /** Rows for targets not on the kit's panel list, left out of results. */
+  offPanelRows: number;
+  /** Rows with no kit ID, held for a person. */
+  heldRows: number;
 }
 
 export interface RunControl {
@@ -110,6 +154,8 @@ export interface ParsedLabRun {
   rowCount: number;
   samples: SampleGroup[];
   runControls: RunControl[];
+  held: HeldRows[];
+  cleanup: LabCleanupSummary;
 }
 
 export class LabFileError extends Error {
@@ -204,10 +250,19 @@ export function callFor(cq: number | null): LabCall {
 }
 
 /**
- * Closest valid kit code for a mistyped sample, by deleting one character
- * ("FFFEC-002-586" gives "FFEC-002-586"). Null when there's no single answer.
+ * Closest valid kit code for a mistyped sample: missing or odd separators and
+ * look-alike characters ("FFEC 0O4926" gives "FFEC-004-926"), or one extra
+ * character ("FFFEC-002-586" gives "FFEC-002-586"). Null when there's no single answer.
  */
 export function suggestKitCode(sample: string): string | null {
+  // Letters and digits only; in the number part, O reads as 0 and I or L as 1.
+  const compact = sample.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const folded = compact.slice(0, 4) + compact.slice(4).replace(/O/g, "0").replace(/[IL]/g, "1");
+  const reshaped = /^([A-Z]{4})(\d{3})(\d{3})$/.exec(folded);
+  if (reshaped) {
+    const p = parseKitCode(`${reshaped[1]}-${reshaped[2]}-${reshaped[3]}`);
+    if (p) return p.code;
+  }
   const s = normalizeKitCode(sample);
   const found = new Set<string>();
   for (let i = 0; i < s.length; i++) {
@@ -241,6 +296,7 @@ function buildSample(sample: string, rows: LabRow[]): SampleGroup {
   const targets = new Map<string, TargetResult>();
   const controls: ControlReading[] = [];
   const omitted: string[] = [];
+  const offPanel = new Map<string, number | null>();
   for (const r of rows) {
     if (r.omitted) {
       omitted.push(r.name);
@@ -249,6 +305,12 @@ function buildSample(sample: string, rows: LabRow[]): SampleGroup {
     if (isInternalControlTarget(r.name)) {
       const checked = r.panelCode ? SAMPLE_CONTROL[r.panelCode].test(r.name) : false;
       controls.push({ name: r.name, well: r.well, cq: r.cq, ampStatus: r.ampStatus, checked });
+      continue;
+    }
+    // Only targets on the panel list are results; keep the best Cq of anything else to flag it.
+    if (!pathogenInfo(r.target)) {
+      const prev = offPanel.get(r.name);
+      if (prev === undefined || (r.cq !== null && (prev === null || r.cq < prev))) offPanel.set(r.name, r.cq);
       continue;
     }
     const prev = targets.get(r.target);
@@ -266,6 +328,11 @@ function buildSample(sample: string, rows: LabRow[]): SampleGroup {
   }
 
   const list = [...targets.values()].sort((a, b) => a.name.localeCompare(b.name));
+  for (const [name, cq] of offPanel) {
+    if (callFor(cq) === "detected") {
+      flags.push(`${name} isn't on the ${panelCode ?? "kit's"} panel list, so it was left out (${fmtCq(cq)}). If it's a real pathogen, it needs adding to the panel list.`);
+    }
+  }
   if (omitted.length) flags.push(`Omitted by the lab: ${[...new Set(omitted)].join(", ").replace(/\.$/, "")}.`);
   for (const t of list) {
     if (t.wells.length > 1) flags.push(`${t.name} was run in ${t.wells.length} wells; using the lowest Cq.`);
@@ -289,8 +356,35 @@ function buildSample(sample: string, rows: LabRow[]): SampleGroup {
     targets: list,
     controls,
     detected: list.filter((t) => t.call === "detected").map((t) => t.name),
+    ignoredTargets: [...offPanel.keys()].sort(),
     flags,
   };
+}
+
+/** Rows with no kit ID, grouped by the panel code written on their targets. */
+function buildHeld(rows: LabRow[]): HeldRows[] {
+  const byPanel = new Map<string, LabRow[]>();
+  for (const r of rows) {
+    const sep = r.target.lastIndexOf("_");
+    const code = sep > 0 ? r.target.slice(sep + 1).trim().toUpperCase() : "";
+    byPanel.set(code, [...(byPanel.get(code) ?? []), r]);
+  }
+  return [...byPanel.entries()]
+    .map(([panelCode, prs]) => ({
+      panelCode,
+      kitPrefix: kitPrefixForPanel(panelCode),
+      wells: [...new Set(prs.map((r) => r.well))].sort(),
+      rowCount: prs.length,
+      detected: [
+        ...new Set(
+          prs
+            .filter((r) => !r.omitted && !isInternalControlTarget(r.name) && callFor(r.cq) === "detected")
+            // Unknown panels keep their code on the name ("Microsporum canis_RWP"); show the name alone.
+            .map((r) => (panelCode && r.name.toUpperCase().endsWith(`_${panelCode}`) ? r.name.slice(0, -panelCode.length - 1).trim() : r.name)),
+        ),
+      ].sort(),
+    }))
+    .sort((a, b) => a.panelCode.localeCompare(b.panelCode));
 }
 
 function buildRunControls(kind: "positive" | "negative", rows: LabRow[]): RunControl[] {
@@ -320,8 +414,12 @@ export function parseLabRun(text: string): ParsedLabRun {
   const rows = parseLabRows(text);
   const bySample = new Map<string, { sample: string; rows: LabRow[] }>();
   const controlRows = { positive: [] as LabRow[], negative: [] as LabRow[] };
+  const heldRows: LabRow[] = [];
   for (const r of rows) {
-    if (!r.sample) continue;
+    if (!r.sample) {
+      heldRows.push(r); // no kit ID: a person decides, we never guess
+      continue;
+    }
     const kind = controlKind(r.sample);
     if (kind) {
       controlRows[kind].push(r);
@@ -333,12 +431,46 @@ export function parseLabRun(text: string): ParsedLabRun {
     if (g) g.rows.push(r);
     else bySample.set(key, { sample: r.sample, rows: [r] });
   }
-  if (!bySample.size) throw new LabFileError("No samples found in the file.");
+  if (!bySample.size && !heldRows.length) throw new LabFileError("No samples found in the file.");
   const samples = [...bySample.values()].map((g) => buildSample(g.sample, g.rows));
   samples.sort((a, b) => (a.kitCode ?? normalizeKitCode(a.sample)).localeCompare(b.kitCode ?? normalizeKitCode(b.sample)));
+  const sampleRows = [...bySample.values()].flatMap((g) => g.rows);
   return {
     rowCount: rows.length,
     samples,
     runControls: [...buildRunControls("positive", controlRows.positive), ...buildRunControls("negative", controlRows.negative)],
+    held: buildHeld(heldRows),
+    cleanup: {
+      idsNormalized: samples.filter((s) => s.kitCode && s.sample !== s.kitCode).length,
+      plateControlRows: controlRows.positive.length + controlRows.negative.length,
+      qualityCheckRows: sampleRows.filter((r) => !r.omitted && isInternalControlTarget(r.name)).length,
+      offPanelRows: sampleRows.filter((r) => !r.omitted && !isInternalControlTarget(r.name) && !pathogenInfo(r.target)).length,
+      heldRows: heldRows.length,
+    },
   };
+}
+
+// ── Upload review (stored on the upload) ───────────────────────────────
+
+/** Held rows as stored on an upload, with who set them aside. */
+export type StoredHeldRows = HeldRows & { dismissedBy?: string | null; dismissedAt?: string | null };
+
+/** One note from the AI review of an upload. Suggestions are only ever applied by a person. */
+export interface LabReviewNote {
+  severity: "info" | "check" | "problem";
+  /** A sample, kit ID or "run". */
+  about: string;
+  message: string;
+  /** Checked on the server: the kit exists, is waiting for results and fits the panel. */
+  suggestion: { sample: string; kitCode: string } | null;
+}
+
+export interface LabRunReview {
+  status: "running" | "done" | "failed" | "unavailable";
+  summary: string | null;
+  notes: LabReviewNote[];
+  model: string | null;
+  error: string | null;
+  /** ISO time. */
+  reviewedAt: string;
 }
