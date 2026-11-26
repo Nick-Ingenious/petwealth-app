@@ -1,10 +1,11 @@
 /** Customer portal services against a real database (RUN_DB_TESTS=1). */
 import { randomInt, randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { formatKitCode } from "@petwealth/domain";
+import { ALL_PERMISSIONS, formatKitCode } from "@petwealth/domain";
+import type { StaffContext } from "./context";
 import { and, eq, getDb, inArray, schema as s } from "@petwealth/db";
 import { BreedAvatarError, type BreedAvatarGenerator } from "@petwealth/integrations/ai";
-import { ensurePetBreedAvatar, getBreedAvatarImage } from "./services/breed-avatars";
+import { ensurePetBreedAvatar, getBreedAvatarImage, listBreedAvatars, redrawBreedAvatar } from "./services/breed-avatars";
 import { TestCarrier } from "@petwealth/integrations/carrier";
 import {
   checkKitCode,
@@ -204,6 +205,46 @@ describe.skipIf(!run)("customer portal (db)", () => {
     // Free-text breeds ("Other") never get a picture.
     expect((await updateMyPet(ctx, rex.id, { ...dog, breed: "Shelter mix" })).photoUrl).toBeNull();
     expect(calls).toBe(2);
+  });
+
+  it("lets staff see breed pictures and redraw one, switching every pet that shows it", async () => {
+    const db = getDb();
+    await db.delete(s.breedAvatars).where(and(eq(s.breedAvatars.species, "dog"), eq(s.breedAvatars.breed, "Whippet")));
+    const staff = (permissions: string[], role: StaffContext["role"] = "customer_support"): StaffContext => ({
+      kind: "staff",
+      staffId: "00000000-0000-0000-0000-000000000000",
+      email: "test@petwealth.com",
+      name: "Test",
+      role,
+      permissions: new Set(permissions) as StaffContext["permissions"],
+      via: "admin_ui",
+    });
+    const admin = staff([...ALL_PERMISSIONS], "super_admin");
+    const viewer = staff(["pets.view"]);
+    let n = 0;
+    const generate: BreedAvatarGenerator = async () => ({ mimeType: "image/jpeg", base64: Buffer.from(`pic-${++n}`).toString("base64"), model: "test/fake" });
+    const dog = { ...felix, species: "dog", breed: "Whippet" };
+
+    const { ctx } = await onboarded();
+    const before = (await previewBreedAvatar(ctx, { species: "dog", breed: "Whippet" }, { generate })).url!;
+    const a = await createPet(ctx, { ...dog, name: "Ace" });
+    const b = await createPet(ctx, { ...dog, name: "Bee" });
+    await setMyPetPhoto(ctx, b.id, "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
+
+    const listed = (await listBreedAvatars(viewer, { species: "dog", q: "whip" })).find((x) => x.breed === "Whippet")!;
+    expect(listed).toMatchObject({ url: before, petCount: 1, redrawn: false });
+    await expect(redrawBreedAvatar(viewer, listed.id, { generate })).rejects.toMatchObject({ status: 403 });
+
+    await new Promise((r) => setTimeout(r, 1100)); // so the new version differs from the old one
+    const { url, pets } = await redrawBreedAvatar(admin, listed.id, { generate });
+    expect(pets).toBe(1);
+    expect(url).not.toBe(before);
+    expect((await getMyPet(ctx, a.id)).photoUrl).toBe(url); // switched to the new picture
+    expect((await getMyPet(ctx, b.id)).photoUrl).toMatch(/^\/api\/pets\//); // own photo untouched
+    expect((await getBreedAvatarImage(listed.id)).content.toString()).toBe("pic-2");
+    expect((await listBreedAvatars(viewer, { q: "Whippet" })).find((x) => x.id === listed.id)).toMatchObject({ redrawn: true, petCount: 1 });
+    const [event] = await db.select().from(s.events).where(and(eq(s.events.entityId, listed.id), eq(s.events.type, "breed_avatar.redrawn")));
+    expect(event?.payload).toMatchObject({ breed: "Whippet", pets: 1 });
   });
 
   it("deletes an account: personal details and pets go, kits, results, orders and addresses stay", async () => {

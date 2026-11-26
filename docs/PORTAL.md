@@ -25,6 +25,7 @@ A pet shows, in order: the photo the customer chose, an AI picture of its breed,
 - Only breeds from the picker list (the old app's breed table, in `packages/domain/src/breeds.ts`) get a picture; "Other" never does. The picker is a searchable "Select breed" sheet with no free text.
 - Picking a breed in the pet form shows "Adding breed image" while it's drawn (10 to 20 seconds the first time, instant after). If it fails, the form says "Breed image unavailable." and the pet keeps its initial; saving tries again in the background.
 - A photo the customer chose is never replaced. "Remove custom photo (Use AI Avatar)" goes back to the breed picture.
+- Staff review them on the admin **Breed Pictures** page (Operations, after Pets; needs "View pets"). **Redraw** (needs "Edit pets") draws a new picture, about $0.04, and switches every pet showing it; pets with their own photo are untouched. Each redraw is recorded as a `breed_avatar.redrawn` event.
 - Auth: Vercel OIDC on deployments; locally, a linked project (`vercel link`) or `AI_GATEWAY_API_KEY`.
 
 ## Local development

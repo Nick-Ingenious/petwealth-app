@@ -18,6 +18,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
       { href: "/kits", label: "Tests", icon: "kits", permission: "kits.view" },
       { href: "/customers", label: "Customers", icon: "customers", permission: "customers.view" },
       { href: "/pets", label: "Pets", icon: "pets", permission: "pets.view" },
+      { href: "/breed-pictures", label: "Breed Pictures", icon: "breedPictures", permission: "pets.view" },
     ],
   },
   {
