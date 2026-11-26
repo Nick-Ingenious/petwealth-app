@@ -25,7 +25,7 @@ describe("kitText", () => {
     for (const t of SMS_TEMPLATES) {
       const body = kitText(t, { kits: [{ petName: "Biscuit" }], url });
       expect(body.length, t).toBeLessThanOrEqual(160);
-      expect(body).not.toMatch(/[–—!]/);
+      expect(body).not.toMatch(/[\u2013\u2014!]/);
       expect(body.endsWith("Reply STOP to opt out.")).toBe(true);
     }
   });
