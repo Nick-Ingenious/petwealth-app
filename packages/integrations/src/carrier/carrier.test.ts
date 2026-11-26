@@ -165,7 +165,7 @@ describe("TestCarrier", () => {
     let now = Date.parse("2026-11-22T12:00:00Z");
     const c = new TestCarrier(() => now);
     const created = await c.createReturnShipment(req);
-    expect(created.trackingNumber).toMatch(/^TEST\d{13}$/);
+    expect(created.trackingNumber).toMatch(/^TEST\d{19}$/); // 10-digit timestamp + 9 random digits
     expect(created.label.format).toBe("qr_png");
     expect(Buffer.from(created.label.contentBase64, "base64").subarray(1, 4).toString()).toBe("PNG");
 
