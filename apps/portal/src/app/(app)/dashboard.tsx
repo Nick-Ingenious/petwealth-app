@@ -46,7 +46,7 @@ function TestsSlide({ greeting, counts }: { greeting: string; counts: Record<Tes
     <div className="relative h-full w-full shrink-0 snap-start overflow-hidden">
       <Image src="/home/hero-dog.jpg" alt="" fill priority sizes="(min-width: 1024px) 1152px, 448px" className="object-cover" />
       <div className="absolute inset-0" style={{ background: "linear-gradient(140deg, #0E2A30 5%, rgba(14,70,85,0.76) 47.5%)" }} aria-hidden />
-      <div className="relative px-5 pt-[104px] lg:max-w-md lg:px-10 lg:pt-[96px]">
+      <div className="relative px-5 pt-[104px] lg:max-w-xl lg:px-10 lg:pb-12 lg:pt-[104px]">
         <h1 className="font-display text-[28px] leading-[34px] text-white lg:text-[40px] lg:leading-[46px]">{greeting}</h1>
         <p className="mt-2 text-[17px] text-white/85">Let&apos;s check in on your pets&apos; health.</p>
         <div className="mt-8 space-y-3.5 rounded-2xl border border-white/15 bg-white/[0.07] px-[18px] py-6 backdrop-blur-sm">
@@ -189,7 +189,7 @@ export function Dashboard({ greeting, firstName, rows, clerk }: { greeting: stri
     <div className="min-h-dvh bg-[#FBF8F4]">
       <div className="mx-auto max-w-md md:max-w-2xl lg:max-w-6xl lg:px-10 lg:pt-6">
         {/* Hero carousel on phones; on desktop just the tests banner (the other slides move to the sidebar). */}
-        <section className="relative h-[555px] overflow-hidden bg-[#19242B] lg:h-[480px] lg:rounded-[28px]" aria-label="Highlights">
+        <section className="relative h-[555px] overflow-hidden bg-[#19242B] lg:h-auto lg:min-h-[480px] lg:rounded-[28px]" aria-label="Highlights">
           <header className="absolute inset-x-5 top-3 z-10 flex h-12 items-center justify-between lg:inset-x-10 lg:top-6">
             <Link href="/" aria-label="PetWealth home">
               {light ? (
@@ -209,7 +209,7 @@ export function Dashboard({ greeting, firstName, rows, clerk }: { greeting: stri
           </header>
           <div
             ref={track}
-            className="flex h-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] lg:overflow-hidden [&::-webkit-scrollbar]:hidden"
+            className="flex h-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] lg:h-auto lg:min-h-[480px] lg:overflow-hidden [&::-webkit-scrollbar]:hidden"
             onScroll={(e) => {
               const el = e.currentTarget;
               setSlide(Math.round(el.scrollLeft / el.clientWidth));
