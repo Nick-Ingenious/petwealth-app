@@ -14,7 +14,7 @@ export const LAB_SUMMARY_MODEL = "claude-opus-5-5";
 export const labSummarySchema = z.object({
   /** 2 to 4 sentences for the top of the report. */
   summary: z.string(),
-  /** One entry per detected pathogen, in plain language. Empty when nothing was detected. */
+  /** One entry per detected pathogen only, in plain language. Empty when nothing was detected. */
   findings: z.array(z.object({ name: z.string(), meaning: z.string() })),
   /** 2 to 4 practical next steps for the pet parent. */
   nextSteps: z.array(z.string()),
@@ -50,6 +50,8 @@ Rules:
 - The vet is a partner. Encourage sharing the report with the vet; do not suggest skipping the vet, and do not add "this is not a diagnosis" disclaimers.
 - Do not recommend specific medications, doses or treatments.
 - Use only the facts given. Do not invent symptoms, prevalence numbers or statistics.
+- findings: one entry for each detected pathogen, and nothing else. Never add a finding for a pathogen that was not detected; a clear result can be mentioned once in the summary instead.
+- Never call a pathogen "normal flora", "normal gut bacteria", "commensal" or "normal to find". Everything on our panels is tested because it can matter for health, so describe a detection as found, then say what it is and why it is worth knowing.
 - Name the test by panel: fecal, oral or respiratory. Do not say "gut health" or "breathing".
 - CT values: lower means more genetic material was found (15 is a high load, 34 is our detection cutoff). You may say a signal is strong or faint; do not quote CT numbers.
 - Use the pet's name when given, otherwise "your pet". Write for the pet parent, in second person.
@@ -78,6 +80,17 @@ Not detected (${notDetected.length}): ${notDetected.map((p) => p.name).join(", "
 Write the summary.`;
 }
 
+const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/** Keep only findings that name a detected pathogen, in case the model adds one for a clear result. */
+function detectedFindings(findings: LabSummary["findings"], input: LabSummaryInput): LabSummary["findings"] {
+  const detected = input.pathogens.filter((p) => p.detected).map((p) => normalize(p.name));
+  return findings.filter((f) => {
+    const n = normalize(f.name);
+    return detected.some((d) => n.includes(d) || d.includes(n));
+  });
+}
+
 /** Replace dash punctuation the house style doesn't allow, in case the model slips. */
 const tidy = (s: string) => s.replace(/\s*[—–]\s*/g, ", ").replace(/,\s*,/g, ",").trim();
 
@@ -104,7 +117,7 @@ export async function writeLabSummary(input: LabSummaryInput, client: Anthropic 
     model: response.model,
     summary: {
       summary: tidy(parsed.summary),
-      findings: parsed.findings.map((f) => ({ name: f.name, meaning: tidy(f.meaning) })),
+      findings: detectedFindings(parsed.findings, input).map((f) => ({ name: f.name, meaning: tidy(f.meaning) })),
       nextSteps: parsed.nextSteps.map(tidy),
       vetUrgency: parsed.vetUrgency,
       vetReason: tidy(parsed.vetReason),
