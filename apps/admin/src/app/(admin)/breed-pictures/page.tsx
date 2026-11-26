@@ -8,6 +8,8 @@ import { formatDate } from "@/lib/format";
 import { RedrawButton } from "./redraw-button";
 
 export const metadata = { title: "Breed Pictures" };
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 /** Redrawing a picture takes 10 to 20 seconds. */
 export const maxDuration = 60;
 
@@ -23,7 +25,7 @@ export default async function BreedPicturesPage({ searchParams }: PageProps<"/br
       <PageHeader
         icon={<ImageIcon className="size-6" />}
         title="Breed Pictures"
-        description={`AI pictures shown for pets without a photo of their own. One per breed, shared by every pet of that breed. ${items.length} pictures, shown on ${inUse} pets.`}
+        description={`AI pictures shown for pets without a photo of their own. One per breed, shared by every pet of that breed. ${plural(items.length, "picture")}, shown on ${plural(inUse, "pet")}.`}
       />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <SearchBox placeholder="Search breed…" />
@@ -48,7 +50,7 @@ export default async function BreedPicturesPage({ searchParams }: PageProps<"/br
                   <div>
                     <p className="font-medium leading-tight">{a.breed}</p>
                     <p className="text-xs text-ink-muted">
-                      {SPECIES_LABEL[a.species].noun} · {a.petCount === 1 ? "1 pet" : `${a.petCount} pets`}
+                      {SPECIES_LABEL[a.species].noun} · {plural(a.petCount, "pet")}
                     </p>
                     <p className="text-xs text-ink-subtle">
                       {a.redrawn ? "Redrawn" : "Drawn"} {formatDate(a.updatedAt)}
