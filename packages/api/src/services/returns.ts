@@ -19,7 +19,9 @@ import {
   SPECIES_LABEL,
   type KitStatus,
 } from "@petwealth/domain";
-import { and, asc, desc, eq, getDb, inArray, isNull, lt, or, schema as s, sql, type DbOrTx } from "@petwealth/db";
+import { and, asc, count, desc, eq, getDb, ilike, inArray, isNull, lt, or, schema as s, sql, type DbOrTx } from "@petwealth/db";
+import { z } from "zod";
+import { likePattern, offsetOf, toPage } from "../pagination";
 import { getCarrier, CarrierError, type Carrier, type TrackingUpdate } from "@petwealth/integrations/carrier";
 import type { EmailSender } from "@petwealth/integrations/email";
 import { recordEvent, type AuditActor } from "../audit";
@@ -407,3 +409,78 @@ export async function listShipmentProblems(ctx: StaffContext) {
   });
 }
 
+
+const RETURN_STATUSES = ["pending", "failed", "label_created", "in_transit", "delivered", "exception", "voided"] as const;
+const returnListSchema = z.object({
+  q: z.string().trim().max(200).optional().transform((v) => v || undefined),
+  status: z.enum(RETURN_STATUSES).optional().or(z.literal("").transform(() => undefined)),
+  page: z.coerce.number().int().min(1).catch(1).default(1),
+  pageSize: z.coerce.number().int().catch(25).default(25).transform((n) => ([25, 50, 100].includes(n) ? n : 25)),
+});
+
+/**
+ * FedEx Returns page: every return mailer (one RMA, up to 10 kits), newest
+ * first, searchable by RMA, tracking number, kit code or customer.
+ */
+export async function listReturnShipments(ctx: StaffContext, input: unknown) {
+  requirePermission(ctx, "kits.view");
+  const q = returnListSchema.parse(input ?? {});
+  const db = getDb();
+  const kitCodes = sql<string[]>`coalesce((select array_agg(k.code order by k.code) from shipment_kits sk join kits k on k.id = sk.kit_id where sk.shipment_id = ${s.shipments.id}), '{}')`;
+  const failedAttempts = sql<number>`(select count(*) from events e where e.entity_type = 'shipment' and e.entity_id = ${s.shipments.id} and e.type = 'shipment.label_failed')`.mapWith(Number);
+  const like = q.q ? likePattern(q.q) : null;
+  const where = and(
+    eq(s.shipments.direction, "return"),
+    q.status ? eq(s.shipments.status, q.status) : undefined,
+    like
+      ? or(
+          ilike(s.shipments.rmaNumber, like),
+          ilike(s.shipments.trackingNumber, like),
+          ilike(s.customers.email, like),
+          sql`concat_ws(' ', ${s.customers.firstName}, ${s.customers.lastName}) ilike ${like}`,
+          sql`exists (select 1 from shipment_kits sk join kits k on k.id = sk.kit_id where sk.shipment_id = ${s.shipments.id} and k.code ilike ${like})`,
+        )
+      : undefined,
+  );
+  const [items, [{ total } = { total: 0 }]] = await Promise.all([
+    db
+      .select({
+        id: s.shipments.id,
+        number: s.shipments.number,
+        rmaNumber: s.shipments.rmaNumber,
+        carrier: s.shipments.carrier,
+        trackingNumber: s.shipments.trackingNumber,
+        trackingUrl: s.shipments.trackingUrl,
+        labelFormat: s.shipments.labelFormat,
+        status: s.shipments.status,
+        statusDetail: s.shipments.statusDetail,
+        error: s.shipments.error,
+        createdAt: s.shipments.createdAt,
+        lastTrackedAt: s.shipments.lastTrackedAt,
+        customerId: s.customers.id,
+        customerName: sql<string | null>`nullif(trim(concat_ws(' ', ${s.customers.firstName}, ${s.customers.lastName})), '')`,
+        customerEmail: s.customers.email,
+        kitCodes,
+        failedAttempts,
+      })
+      .from(s.shipments)
+      .leftJoin(s.customers, eq(s.shipments.customerId, s.customers.id))
+      .where(where)
+      .orderBy(desc(s.shipments.createdAt))
+      .limit(q.pageSize)
+      .offset(offsetOf(q)),
+    db.select({ total: count() }).from(s.shipments).leftJoin(s.customers, eq(s.shipments.customerId, s.customers.id)).where(where),
+  ]);
+  return toPage(items, total, q);
+}
+
+/** Staff "refresh tracking" for one return mailer: polls the carrier now instead of waiting for the cron. */
+export async function refreshReturnTracking(ctx: StaffContext, shipmentId: string, opts: { carrier?: Carrier } = {}) {
+  requirePermission(ctx, "kits.manage");
+  const [shipment] = await getDb().select().from(s.shipments).where(eq(s.shipments.id, shipmentId));
+  if (!shipment) throw notFound("Return mailer");
+  if (!shipment.trackingNumber) throw conflict("This mailer has no tracking number yet.");
+  const carrier = opts.carrier ?? getCarrier();
+  const [u] = await carrier.track([shipment.trackingNumber]);
+  return applyTrackingUpdate(shipment, u, actorFields(ctx), new Date());
+}

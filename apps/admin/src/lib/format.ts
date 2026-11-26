@@ -7,6 +7,8 @@ const dateTimeFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "num
 
 export const formatDate = (d: Date | string | null | undefined) => (d ? dateFmt.format(new Date(d)) : "—");
 export const formatDateTime = (d: Date | string | null | undefined) => (d ? dateTimeFmt.format(new Date(d)) : "—");
+const timeFmt = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+export const formatTime = (d: Date | string | null | undefined) => (d ? timeFmt.format(new Date(d)) : "");
 
 export function fullName(p: { firstName?: string | null; lastName?: string | null } | null | undefined): string {
   return [p?.firstName, p?.lastName].filter(Boolean).join(" ") || "—";

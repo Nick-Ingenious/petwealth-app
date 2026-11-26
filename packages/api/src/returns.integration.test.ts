@@ -12,7 +12,7 @@ import type { StaffContext } from "./context";
 import { EmailError, TestEmailSender, type EmailSender } from "@petwealth/integrations/email";
 import { deliverQueuedEmails } from "./services/notifications";
 import { receiveKit, transitionKit } from "./services/kits";
-import { refreshTracking, registerKitsAsStaff, retryReturnLabel } from "./services/returns";
+import { listReturnShipments, refreshTracking, registerKitsAsStaff, retryReturnLabel } from "./services/returns";
 
 const run = process.env.RUN_DB_TESTS === "1";
 const staff: StaffContext = {
@@ -146,6 +146,24 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
 
     expect(await retryReturnLabel(staff, res.shipmentId, { carrier: new TestCarrier() })).toEqual({ status: "label_created" });
     await expect(retryReturnLabel(staff, res.shipmentId, { carrier: new TestCarrier() })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("lists return mailers with search and status filter for the FedEx Returns page", async () => {
+    const { customer, cat } = await makeCustomer();
+    const kitCode = code("cat", "oral");
+    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode, petId: cat.id }] }, { carrier: failing });
+
+    const byKit = await listReturnShipments(staff, { q: kitCode });
+    expect(byKit.items).toHaveLength(1);
+    expect(byKit.items[0]).toMatchObject({ id: res.shipmentId, status: "failed", customerEmail: customer.email, kitCodes: [kitCode], failedAttempts: 1 });
+
+    expect((await listReturnShipments(staff, { q: customer.email, status: "failed" })).items.map((r) => r.id)).toEqual([res.shipmentId]);
+    expect((await listReturnShipments(staff, { q: customer.email, status: "delivered" })).items).toHaveLength(0);
+
+    await retryReturnLabel(staff, res.shipmentId, { carrier: new TestCarrier() });
+    const after = await listReturnShipments(staff, { q: kitCode });
+    expect(after.items[0]).toMatchObject({ status: "label_created", rmaNumber: expect.stringMatching(/^PWR/) });
+    expect((await listReturnShipments(staff, { q: after.items[0]!.rmaNumber! })).items.map((r) => r.id)).toEqual([res.shipmentId]);
   });
 
   it("moves kits to In Transit when the mailer is picked up, and handles delivery", async () => {

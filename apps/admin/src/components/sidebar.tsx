@@ -4,14 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Barcode, BookOpen, Building2, FileUp, FlaskConical, KeyRound, LayoutGrid, Link2, Microscope,
-  Package, PawPrint, RefreshCw, ShieldCheck, Users, type LucideIcon,
+  Package, PawPrint, RefreshCw, ShieldCheck, Truck, Users, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@petwealth/ui";
 import type { NavItem } from "./nav";
 
 const ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutGrid, orders: Package, kits: FlaskConical, customers: Users, pets: PawPrint,
-  receive: Barcode, results: Microscope, upload: FileUp, rerun: RefreshCw, tracking: Link2,
+  receive: Barcode, results: Microscope, upload: FileUp, rerun: RefreshCw, tracking: Link2, returns: Truck,
   wholesale: Building2, users: ShieldCheck, permissions: KeyRound, api: BookOpen,
 };
 
