@@ -33,7 +33,7 @@ export default async function ManagePetsPage() {
   const ctx = await requireCustomer({ next: "/pets" });
   const pets = await listMyPets(ctx);
   return (
-    <Screen>
+    <Screen size="medium">
       <header className="-mx-5 mb-6 flex items-center gap-4 border-b border-zinc-200 px-5 py-5">
         <Link href="/" aria-label="Back" className="p-1">
           <ChevronLeft className="size-7" />
@@ -41,7 +41,7 @@ export default async function ManagePetsPage() {
         <h1 className="text-3xl font-semibold">Manage Pets</h1>
       </header>
       {pets.length === 0 ? <p className="py-6 text-center text-lg text-zinc-500">No pets yet. Add one to register a kit.</p> : null}
-      <ul className="space-y-3">
+      <ul className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
         {pets.map((p) => (
           <li key={p.id} className="flex items-center gap-3 rounded-[14px] bg-[#F2ECFF] p-3">
             <PetAvatar name={p.name} species={p.species} photoUrl={p.photoUrl} />
@@ -60,7 +60,7 @@ export default async function ManagePetsPage() {
       </ul>
       <Link
         href="/pets/new?returnTo=%2Fpets"
-        className="mt-5 flex h-[50px] items-center justify-center gap-2 rounded-full border border-[#E7DFD4] bg-white text-base font-semibold text-ink"
+        className="mt-5 flex h-[50px] items-center justify-center gap-2 rounded-full border border-[#E7DFD4] bg-white text-base font-semibold text-ink lg:w-72"
       >
         <Plus className="size-5" aria-hidden /> Add New Pet
       </Link>

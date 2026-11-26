@@ -87,7 +87,16 @@ export function Header({ showCode = true }: { showCode?: boolean }) {
   );
 }
 
-/** Narrow, centered column — the portal is designed for phones first. */
-export function Screen({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto w-full max-w-md px-5 pb-16">{children}</div>;
+const SCREEN_WIDTH = {
+  /** Forms: a comfortable reading width on desktop too. */
+  form: "md:max-w-xl",
+  /** Lists (e.g. Manage Pets) laid out in a grid on desktop. */
+  medium: "md:max-w-2xl lg:max-w-3xl",
+  /** Pages with a desktop layout of their own (two columns). */
+  wide: "md:max-w-2xl lg:max-w-6xl lg:px-10",
+} as const;
+
+/** Centered page column. Phones first: the same narrow column on phones, wider on tablets and desktop. */
+export function Screen({ children, size = "form" }: { children: React.ReactNode; size?: keyof typeof SCREEN_WIDTH }) {
+  return <div className={`mx-auto w-full max-w-md px-5 pb-16 ${SCREEN_WIDTH[size]}`}>{children}</div>;
 }

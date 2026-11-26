@@ -44,10 +44,10 @@ const TABS: { key: TestTab; label: string }[] = [
 function TestsSlide({ greeting, counts }: { greeting: string; counts: Record<TestTab, number> }) {
   return (
     <div className="relative h-full w-full shrink-0 snap-start overflow-hidden">
-      <Image src="/home/hero-dog.jpg" alt="" fill priority sizes="448px" className="object-cover" />
+      <Image src="/home/hero-dog.jpg" alt="" fill priority sizes="(min-width: 1024px) 1152px, 448px" className="object-cover" />
       <div className="absolute inset-0" style={{ background: "linear-gradient(140deg, #0E2A30 5%, rgba(14,70,85,0.76) 47.5%)" }} aria-hidden />
-      <div className="relative px-5 pt-[104px]">
-        <h1 className="font-display text-[28px] leading-[34px] text-white">{greeting}</h1>
+      <div className="relative px-5 pt-[104px] lg:max-w-md lg:px-10 lg:pt-[96px]">
+        <h1 className="font-display text-[28px] leading-[34px] text-white lg:text-[40px] lg:leading-[46px]">{greeting}</h1>
         <p className="mt-2 text-[17px] text-white/85">Let&apos;s check in on your pets&apos; health.</p>
         <div className="mt-8 space-y-3.5 rounded-2xl border border-white/15 bg-white/[0.07] px-[18px] py-6 backdrop-blur-sm">
           <p className="flex items-center gap-1.5">
@@ -187,10 +187,10 @@ export function Dashboard({ greeting, firstName, rows, clerk }: { greeting: stri
 
   return (
     <div className="min-h-dvh bg-[#FBF8F4]">
-      <div className="mx-auto max-w-md">
-        {/* Hero carousel */}
-        <section className="relative h-[555px] overflow-hidden bg-[#19242B]" aria-label="Highlights">
-          <header className="absolute inset-x-5 top-3 z-10 flex h-12 items-center justify-between">
+      <div className="mx-auto max-w-md md:max-w-2xl lg:max-w-6xl lg:px-10 lg:pt-6">
+        {/* Hero carousel on phones; on desktop just the tests banner (the other slides move to the sidebar). */}
+        <section className="relative h-[555px] overflow-hidden bg-[#19242B] lg:h-[480px] lg:rounded-[28px]" aria-label="Highlights">
+          <header className="absolute inset-x-5 top-3 z-10 flex h-12 items-center justify-between lg:inset-x-10 lg:top-6">
             <Link href="/" aria-label="PetWealth home">
               {light ? (
                 <Image src="/brand/logo-dark.svg" alt="petwealth" width={136} height={22} className="h-[22px] w-auto" />
@@ -209,17 +209,19 @@ export function Dashboard({ greeting, firstName, rows, clerk }: { greeting: stri
           </header>
           <div
             ref={track}
-            className="flex h-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex h-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] lg:overflow-hidden [&::-webkit-scrollbar]:hidden"
             onScroll={(e) => {
               const el = e.currentTarget;
               setSlide(Math.round(el.scrollLeft / el.clientWidth));
             }}
           >
             <TestsSlide greeting={greeting} counts={counts} />
-            <PawpSlide />
-            <ExploreSlide />
+            <div className="contents lg:hidden">
+              <PawpSlide />
+              <ExploreSlide />
+            </div>
           </div>
-          <div className="absolute inset-x-0 bottom-[54px] flex justify-center gap-2">
+          <div className="absolute inset-x-0 bottom-[54px] flex justify-center gap-2 lg:hidden">
             {[0, 1, 2].map((i) => (
               <button
                 key={i}
@@ -233,133 +235,159 @@ export function Dashboard({ greeting, firstName, rows, clerk }: { greeting: stri
         </section>
 
         {/* Sheet */}
-        <main className="relative -mt-[25px] space-y-3.5 rounded-t-[18px] bg-[#FBF8F4] px-3.5 pb-12 pt-3">
-          <div role="tablist" aria-label="Tests" className="flex h-12 gap-1 overflow-x-auto rounded-full bg-[#EFE9E1] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {TABS.map((t) => {
-              const active = tab === t.key;
-              return (
-                <button
-                  key={t.key}
-                  role="tab"
-                  type="button"
-                  aria-selected={active}
-                  onClick={() => setTab(t.key)}
-                  className={cn(
-                    "flex h-10 shrink-0 grow items-center justify-center gap-2 rounded-full pl-3.5 pr-2.5 text-[13.5px] font-semibold",
-                    active ? "bg-white text-[#101828] shadow-sm" : "text-[#6F6A64]",
-                  )}
-                >
-                  {t.label}
-                  <span className={cn("min-w-[22px] rounded-full px-[7px] py-0.5 text-[11px] font-bold", active ? "bg-[#19242B] text-white" : "bg-[#E7DFD4] text-[#6F6A64]")}>
-                    {counts[t.key]}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {rows.length ? (
-            <>
-              <label className="flex h-[50px] items-center gap-2.5 rounded-[14px] border border-[#D1D3D5] bg-white px-3.5 focus-within:border-2 focus-within:border-[#19242B]">
-                <Search className="size-4 text-[#6F6A64]" aria-hidden />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by pet name"
-                  aria-label="Search by pet name"
-                  className="min-w-0 flex-1 bg-transparent text-sm text-[#19242B] outline-none placeholder:text-[#8A847B]"
-                />
-                {query ? (
-                  <button type="button" aria-label="Clear search" onClick={() => setQuery("")}>
-                    <X className="size-4 text-[#6F6A64]" aria-hidden />
+        <div className="lg:mt-8 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-8">
+          <main className="relative -mt-[25px] space-y-3.5 rounded-t-[18px] bg-[#FBF8F4] px-3.5 pb-12 pt-3 lg:mt-0 lg:px-0 lg:pt-0">
+            <div role="tablist" aria-label="Tests" className="flex h-12 gap-1 overflow-x-auto rounded-full bg-[#EFE9E1] p-1 [scrollbar-width:none] lg:max-w-xl [&::-webkit-scrollbar]:hidden">
+              {TABS.map((t) => {
+                const active = tab === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    role="tab"
+                    type="button"
+                    aria-selected={active}
+                    onClick={() => setTab(t.key)}
+                    className={cn(
+                      "flex h-10 shrink-0 grow items-center justify-center gap-2 rounded-full pl-3.5 pr-2.5 text-[13.5px] font-semibold",
+                      active ? "bg-white text-[#101828] shadow-sm" : "text-[#6F6A64]",
+                    )}
+                  >
+                    {t.label}
+                    <span className={cn("min-w-[22px] rounded-full px-[7px] py-0.5 text-[11px] font-bold", active ? "bg-[#19242B] text-white" : "bg-[#E7DFD4] text-[#6F6A64]")}>
+                      {counts[t.key]}
+                    </span>
                   </button>
-                ) : null}
-              </label>
+                );
+              })}
+            </div>
 
-              {visible.length ? (
-                <ul className="space-y-1">
-                  {visible.map((r) => (
-                    <li key={r.code}>
-                      <Link href={r.href as never} className="flex h-24 items-center gap-3 rounded-2xl bg-white p-3 shadow-[0_6px_14px_rgba(15,23,41,0.04)]">
-                        <span
-                          className={cn(
-                            "relative grid size-[72px] shrink-0 place-items-center overflow-hidden rounded-full border-[3px] border-white/55 text-lg font-bold",
-                            r.species === "cat" ? "bg-[#FBF1DF] text-[#8A6321]" : "bg-[#E2D5FF] text-[#5B3FA8]",
-                          )}
-                          aria-hidden
-                        >
-                          {r.petPhoto ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={r.petPhoto} alt="" className="absolute inset-0 size-full object-cover" />
-                          ) : (
-                            (r.petName ?? "Y").slice(0, 1).toUpperCase()
-                          )}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-2">
-                            <span className="truncate text-[15px] font-bold text-[#101828]">{r.petName ?? "Your pet"}</span>
-                            <span className={cn("shrink-0 rounded-[7px] px-2 py-1 text-[11px] font-bold leading-[15px]", CHIP[r.group].className)}>{CHIP[r.group].label}</span>
+            {rows.length ? (
+              <>
+                <label className="flex h-[50px] items-center gap-2.5 rounded-[14px] border border-[#D1D3D5] bg-white px-3.5 focus-within:border-2 focus-within:border-[#19242B] lg:max-w-xl">
+                  <Search className="size-4 text-[#6F6A64]" aria-hidden />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search by pet name"
+                    aria-label="Search by pet name"
+                    className="min-w-0 flex-1 bg-transparent text-sm text-[#19242B] outline-none placeholder:text-[#8A847B]"
+                  />
+                  {query ? (
+                    <button type="button" aria-label="Clear search" onClick={() => setQuery("")}>
+                      <X className="size-4 text-[#6F6A64]" aria-hidden />
+                    </button>
+                  ) : null}
+                </label>
+
+                {visible.length ? (
+                  <ul className="space-y-1 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
+                    {visible.map((r) => (
+                      <li key={r.code}>
+                        <Link href={r.href as never} className="flex h-24 items-center gap-3 rounded-2xl bg-white p-3 shadow-[0_6px_14px_rgba(15,23,41,0.04)]">
+                          <span
+                            className={cn(
+                              "relative grid size-[72px] shrink-0 place-items-center overflow-hidden rounded-full border-[3px] border-white/55 text-lg font-bold",
+                              r.species === "cat" ? "bg-[#FBF1DF] text-[#8A6321]" : "bg-[#E2D5FF] text-[#5B3FA8]",
+                            )}
+                            aria-hidden
+                          >
+                            {r.petPhoto ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={r.petPhoto} alt="" className="absolute inset-0 size-full object-cover" />
+                            ) : (
+                              (r.petName ?? "Y").slice(0, 1).toUpperCase()
+                            )}
                           </span>
-                          <span className="mt-1 block truncate text-[13px] text-[#4A5565]">{[r.date, r.kitName].filter(Boolean).join(" • ")}</span>
-                        </span>
-                        {r.hasResults ? (
-                          <span className="grid size-8 shrink-0 place-items-center rounded-[14px] bg-[#F6F1EA]" aria-hidden>
-                            <ArrowUpRight className="size-4 text-[#19242B]" strokeWidth={3} />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-2">
+                              <span className="truncate text-[15px] font-bold text-[#101828]">{r.petName ?? "Your pet"}</span>
+                              <span className={cn("shrink-0 rounded-[7px] px-2 py-1 text-[11px] font-bold leading-[15px]", CHIP[r.group].className)}>{CHIP[r.group].label}</span>
+                            </span>
+                            <span className="mt-1 block truncate text-[13px] text-[#4A5565]">{[r.date, r.kitName].filter(Boolean).join(" • ")}</span>
                           </span>
-                        ) : null}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : q ? (
-                <div className="py-6 text-center">
-                  <p className="text-sm text-[#6F6A64]">No tests match “{query.trim()}”.</p>
-                  <button type="button" onClick={() => setQuery("")} className="mt-3 h-10 rounded-full border border-[#E7DFD4] bg-white px-5 text-sm font-semibold text-[#19242B]">
-                    Show all tests
-                  </button>
+                          {r.hasResults ? (
+                            <span className="grid size-8 shrink-0 place-items-center rounded-[14px] bg-[#F6F1EA]" aria-hidden>
+                              <ArrowUpRight className="size-4 text-[#19242B]" strokeWidth={3} />
+                            </span>
+                          ) : null}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : q ? (
+                  <div className="py-6 text-center">
+                    <p className="text-sm text-[#6F6A64]">No tests match “{query.trim()}”.</p>
+                    <button type="button" onClick={() => setQuery("")} className="mt-3 h-10 rounded-full border border-[#E7DFD4] bg-white px-5 text-sm font-semibold text-[#19242B]">
+                      Show all tests
+                    </button>
+                  </div>
+                ) : (
+                  <p className="py-6 text-center text-[13px] text-[#6F6A64]">No tests in this tab yet.</p>
+                )}
+              </>
+            ) : (
+              <section className="flex flex-col items-center rounded-2xl bg-white px-5 py-8 text-center">
+                <Image src="/home/empty-state-illustration.png" alt="" width={317} height={237} className="h-auto w-full max-w-[316px]" />
+                <h2 className="mt-4 font-display text-[26px] leading-8 text-[#1E293B]">Start with your pet&apos;s first health check</h2>
+                <p className="mt-2 text-[14.5px] leading-[21px] text-[#4A5565]">Understand what&apos;s happening beneath the surface, before symptoms appear.</p>
+                <div className="mt-5 grid w-full grid-cols-2 gap-3">
+                  <a href={STORE_URL} target="_blank" rel="noopener noreferrer" className="flex h-12 items-center justify-center rounded-full border border-[#19242B] text-sm font-semibold text-[#19242B]">
+                    Order Test Kit
+                  </a>
+                  <Link href="/register" className="flex h-12 items-center justify-center gap-1 rounded-full bg-[#19242B] text-sm font-semibold text-white">
+                    Register New Kit <ArrowRight className="size-4" aria-hidden />
+                  </Link>
                 </div>
-              ) : (
-                <p className="py-6 text-center text-[13px] text-[#6F6A64]">No tests in this tab yet.</p>
-              )}
-            </>
-          ) : (
-            <section className="flex flex-col items-center rounded-2xl bg-white px-5 py-8 text-center">
-              <Image src="/home/empty-state-illustration.png" alt="" width={317} height={237} className="h-auto w-full max-w-[316px]" />
-              <h2 className="mt-4 font-display text-[26px] leading-8 text-[#1E293B]">Start with your pet&apos;s first health check</h2>
-              <p className="mt-2 text-[14.5px] leading-[21px] text-[#4A5565]">Understand what&apos;s happening beneath the surface, before symptoms appear.</p>
-              <div className="mt-5 grid w-full grid-cols-2 gap-3">
-                <a href={STORE_URL} target="_blank" rel="noopener noreferrer" className="flex h-12 items-center justify-center rounded-full border border-[#19242B] text-sm font-semibold text-[#19242B]">
-                  Order Test Kit
-                </a>
-                <Link href="/register" className="flex h-12 items-center justify-center gap-1 rounded-full bg-[#19242B] text-sm font-semibold text-white">
-                  Register New Kit <ArrowRight className="size-4" aria-hidden />
-                </Link>
-              </div>
-            </section>
-          )}
+              </section>
+            )}
 
-          {/* Recommendations */}
-          <section className="space-y-3 pt-4">
-            <h2 className="text-[14.5px] font-bold text-[#19242B]">Recommendations</h2>
-            <a href={PAWP_URL} target="_blank" rel="noopener noreferrer" className="block rounded-2xl bg-white p-4 shadow-[0_6px_14px_rgba(15,23,41,0.04)]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#8A847B]">Need help?</p>
-              <p className="mt-1 font-display text-[19px] leading-[25px] text-[#101828]">24/7 Vet Support is Available</p>
-              <p className="mt-1 inline-flex items-center gap-1 text-sm font-bold text-[#5B3FA8]">
-                Ask a Vet Anything <ArrowRight className="size-4" aria-hidden />
-              </p>
-            </a>
-            <a href={STORE_URL} target="_blank" rel="noopener noreferrer" className="flex h-16 items-center gap-3 rounded-2xl bg-[#F6F1EA] px-4">
-              <Image src="/home/shortcut-tube.png" alt="" width={192} height={192} className="size-10 object-contain" />
-              <span className="flex-1 text-[14.5px] font-semibold text-[#101828]">Purchase a health panel</span>
-              <ChevronRight className="size-5 text-[#6F6963]" aria-hidden />
-            </a>
-            <Link href="/register" className="flex h-16 items-center gap-3 rounded-2xl bg-[#F6F1EA] px-4">
-              <Image src="/home/shortcut-kit.png" alt="" width={240} height={180} className="h-10 w-auto object-contain" />
-              <span className="flex-1 text-[14.5px] font-semibold text-[#101828]">Activate another kit</span>
-              <ChevronRight className="size-5 text-[#6F6963]" aria-hidden />
-            </Link>
-          </section>
-        </main>
+            {/* Recommendations (phones; desktop shows them in the sidebar) */}
+            <section className="space-y-3 pt-4 lg:hidden">
+              <h2 className="text-[14.5px] font-bold text-[#19242B]">Recommendations</h2>
+              <a href={PAWP_URL} target="_blank" rel="noopener noreferrer" className="block rounded-2xl bg-white p-4 shadow-[0_6px_14px_rgba(15,23,41,0.04)]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#8A847B]">Need help?</p>
+                <p className="mt-1 font-display text-[19px] leading-[25px] text-[#101828]">24/7 Vet Support is Available</p>
+                <p className="mt-1 inline-flex items-center gap-1 text-sm font-bold text-[#5B3FA8]">
+                  Ask a Vet Anything <ArrowRight className="size-4" aria-hidden />
+                </p>
+              </a>
+              <a href={STORE_URL} target="_blank" rel="noopener noreferrer" className="flex h-16 items-center gap-3 rounded-2xl bg-[#F6F1EA] px-4">
+                <Image src="/home/shortcut-tube.png" alt="" width={192} height={192} className="size-10 object-contain" />
+                <span className="flex-1 text-[14.5px] font-semibold text-[#101828]">Purchase a health panel</span>
+                <ChevronRight className="size-5 text-[#6F6963]" aria-hidden />
+              </a>
+              <Link href="/register" className="flex h-16 items-center gap-3 rounded-2xl bg-[#F6F1EA] px-4">
+                <Image src="/home/shortcut-kit.png" alt="" width={240} height={180} className="h-10 w-auto object-contain" />
+                <span className="flex-1 text-[14.5px] font-semibold text-[#101828]">Activate another kit</span>
+                <ChevronRight className="size-5 text-[#6F6963]" aria-hidden />
+              </Link>
+            </section>
+          </main>
+
+          {/* Desktop sidebar: vet support, more tests and shortcuts (the carousel slides on phones). */}
+          <aside className="hidden space-y-4 lg:sticky lg:top-6 lg:block">
+            {/* The carousel slides, without the room they leave for the carousel's logo and dots. */}
+            <div className="overflow-hidden rounded-[24px] [&>div]:pb-8 [&>div]:pt-8">
+              <PawpSlide />
+            </div>
+            <div className="overflow-hidden rounded-[24px] [&>div]:pb-8 [&>div]:pt-8">
+              <ExploreSlide />
+            </div>
+            <section className="space-y-3">
+              <h2 className="text-[14.5px] font-bold text-[#19242B]">Recommendations</h2>
+              <a href={STORE_URL} target="_blank" rel="noopener noreferrer" className="flex h-16 items-center gap-3 rounded-2xl bg-[#F6F1EA] px-4">
+                <Image src="/home/shortcut-tube.png" alt="" width={192} height={192} className="size-10 object-contain" />
+                <span className="flex-1 text-[14.5px] font-semibold text-[#101828]">Purchase a health panel</span>
+                <ChevronRight className="size-5 text-[#6F6963]" aria-hidden />
+              </a>
+              <Link href="/register" className="flex h-16 items-center gap-3 rounded-2xl bg-[#F6F1EA] px-4">
+                <Image src="/home/shortcut-kit.png" alt="" width={240} height={180} className="h-10 w-auto object-contain" />
+                <span className="flex-1 text-[14.5px] font-semibold text-[#101828]">Activate another kit</span>
+                <ChevronRight className="size-5 text-[#6F6963]" aria-hidden />
+              </Link>
+            </section>
+          </aside>
+        </div>
       </div>
       {menuOpen ? <Drawer name={firstName} onClose={() => setMenuOpen(false)} clerk={clerk} /> : null}
     </div>

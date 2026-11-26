@@ -85,137 +85,144 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
   const labelUrl = mailer ? `/api/mailers/${mailer.id}/label` : null;
 
   return (
-    <Screen>
+    <Screen size="wide">
       <Header />
-      {registered ? (
-        <h1 className="mt-4 text-4xl font-semibold leading-tight">
-          Success! <span className="font-light">Your test kit is registered.</span>
-        </h1>
-      ) : (
-        <h1 className="mt-4 text-4xl font-semibold leading-tight">{petName}&apos;s {PANEL_LABEL[kit.panel]} test</h1>
-      )}
-      <KitImage species={kit.species} panel={kit.panel} priority className="mx-auto mt-6 h-auto w-full max-w-sm object-contain" />
-      {registered ? (
-        <>
-          <p className="mt-4 text-3xl font-light leading-snug">Collect your pet&apos;s test sample as instructed and mail it back to our lab.</p>
-          <p className="mt-4 text-xl text-zinc-500">Results will begin populating in your dashboard within 24–48 hours of the lab receiving your kit.</p>
-        </>
-      ) : null}
-
-      <ol className="mt-10">
-        <Step title="Activate kit" state="done">
-          <p className="text-lg text-zinc-700">
-            Your PetWealth health test kit is linked to <strong>{petName}</strong>
-          </p>
-          <p className="mt-2 inline-flex flex-wrap items-center gap-x-2 rounded-xl bg-lilac-100 px-3 py-1.5 font-mono text-lg">
-            <TestTube2 className="size-4 text-violet-500" aria-hidden /> <span className="whitespace-nowrap">ID: {kit.code}</span> <span className="font-sans text-zinc-500">({PANEL_LABEL[kit.panel]})</span>
-          </p>
-        </Step>
-
-        <Step n={2} title="Collect sample" state={state("collect")}>
-          {state("collect") === "current" ? (
-            <div className="space-y-5 rounded-3xl border border-zinc-200 bg-white p-4 sm:p-5">
-              <div className="space-y-2">
-                <h3 className="text-2xl font-semibold">{guide.title}</h3>
-                <BookletRef pages="p.12-15" />
-              </div>
-              {guide.intro ? <p className="text-lg text-zinc-500">{guide.intro}</p> : null}
-              <Rows rows={guide.rows} />
-              <CollectedButton code={kit.code} petName={petName} />
-            </div>
+      <div className="lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
+        {/* Desktop: the kit stays in view on the left while the steps scroll on the right. */}
+        <div className="lg:sticky lg:top-6 lg:self-start">
+          {registered ? (
+            <h1 className="mt-4 text-4xl font-semibold leading-tight">
+              Success! <span className="font-light">Your test kit is registered.</span>
+            </h1>
           ) : (
-            <p className="text-lg text-zinc-500">{state("collect") === "done" ? "Sample collected" : "Not collected yet"}</p>
+            <h1 className="mt-4 text-4xl font-semibold leading-tight">{petName}&apos;s {PANEL_LABEL[kit.panel]} test</h1>
           )}
-        </Step>
-
-        <Step n={3} title="Pack the mailer" state={shipState}>
-          {kit.journey.step === "ship" ? (
-            <div className="space-y-4">
-              <BookletRef pages="p.16-18" />
-              <Rows rows={PACK} />
-              {kit.mailerKits.length ? (
-                <p className="text-lg text-zinc-700">
-                  Include your other tubes in the same mailer: {kit.mailerKits.map((k) => `${k.code}${k.petName ? ` (${k.petName})` : ""}`).join(", ")}.
-                </p>
-              ) : null}
-            </div>
-          ) : (
-            <p className="text-lg text-zinc-500">{shipState === "done" ? "Packed" : "Ready when you are"}</p>
-          )}
-        </Step>
-
-        <Step n={4} title="Ship to the lab" state={shipState}>
-          {!mailer || mailer.status === "pending" || mailer.status === "failed" ? (
-            <p className="text-lg text-zinc-600">We&apos;re preparing your FedEx code. It will appear here shortly.</p>
-          ) : state("ship") === "done" ? (
-            <p className="text-lg text-zinc-500">On its way to the lab with FedEx · {mailer.rmaNumber}</p>
-          ) : (
-            <div className="space-y-4">
-              <h3 className="text-2xl font-semibold">Your shipping label is ready</h3>
-              <p className="text-lg text-zinc-600">
-                {mailer.labelFormat === "pdf"
-                  ? "Print this label and attach it to your sealed mailer, then drop it at any FedEx location."
-                  : "Take your sealed mailer to any FedEx counter. Show them this code and they'll print the label and stick it on for you, so you don't need a printer."}
-              </p>
-              {mailer.labelFormat === "qr_png" ? (
-                <div className="rounded-3xl border-2 border-dashed border-lilac-300 bg-white p-6 text-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={labelUrl!} alt={`FedEx return QR code ${mailer.rmaNumber}`} className="mx-auto aspect-square w-full max-w-64" />
-                  <p className="mt-2 text-sm text-zinc-600">RMA Number: {mailer.rmaNumber}</p>
-                </div>
-              ) : null}
-              <a href={labelUrl!} target="_blank" rel="noreferrer" className="flex h-14 items-center justify-center rounded-full bg-lilac-300 text-lg font-semibold">
-                {mailer.labelFormat === "pdf" ? "Open label to print" : "Show code at the counter"}
-              </a>
-              <a href={`${labelUrl}?download=1`} className="flex h-14 items-center justify-center rounded-full border border-zinc-200 bg-white text-lg font-semibold">
-                {mailer.labelFormat === "pdf" ? "Download" : "Save to Photos"}
-              </a>
-              <div className="flex gap-3 rounded-3xl bg-sun-50 p-5 text-lg text-zinc-700">
-                <Lightbulb className="mt-1 size-6 shrink-0 text-amber-500" aria-hidden />
-                <p>
-                  Drop it off within {DROP_OFF_WITHIN_DAYS} days of collecting. Drop boxes can&apos;t print labels, so hand it over at the counter.
-                </p>
-              </div>
-            </div>
-          )}
-        </Step>
-
-        <Step title="Sample mailed" state={kit.journey.done.includes("results") ? "done" : kit.journey.step === "results" ? "current" : "todo"}>
-          <h3 className="text-2xl font-semibold">{kit.status === "completed" ? `${petName}'s results are ready` : `Awaiting ${petName}'s test results`}</h3>
-          <p className="mt-1 text-lg text-zinc-600">
-            {kit.status === "completed"
-              ? "Your report is ready to view."
-              : `${petName.charAt(0).toUpperCase()}${petName.slice(1)}'s report will appear in your dashboard.`}
-          </p>
-          {kit.status === "rerun" ? (
+          <KitImage species={kit.species} panel={kit.panel} priority className="mx-auto mt-6 h-auto w-full max-w-sm object-contain" />
+          {registered ? (
             <>
-              <p className="mt-2 text-zinc-500">Current status: Rerunning {petName}&apos;s sample</p>
-              {/* Shown only in the app; we don't email or text customers about reruns. */}
-              <div className="mt-4 flex gap-3 rounded-3xl bg-sun-50 p-5 text-lg text-zinc-700">
-                <Lightbulb className="mt-1 size-6 shrink-0 text-amber-500" aria-hidden />
-                <p>
-                  Rerunning is very common for ensuring high-quality assurance on your results. This typically does not delay your results,
-                  but since we are a tightly integrated lab, you see in real time how things are moving forward.
-                </p>
-              </div>
+              <p className="mt-4 text-3xl font-light leading-snug">Collect your pet&apos;s test sample as instructed and mail it back to our lab.</p>
+              <p className="mt-4 text-xl text-zinc-500">Results will begin populating in your dashboard within 24–48 hours of the lab receiving your kit.</p>
             </>
-          ) : kit.journey.step === "results" && kit.status !== "completed" ? (
-            <p className="mt-2 text-zinc-500">Current status: {kit.statusLabel}</p>
           ) : null}
-          {hasReport ? (
-            <Link
-              href={`/kits/${kit.code}/results`}
-              className="mt-4 flex h-14 items-center justify-center gap-2 rounded-full bg-lilac-300 text-lg font-semibold"
-            >
-              View results <ArrowRight className="size-5" aria-hidden />
-            </Link>
-          ) : null}
-        </Step>
-      </ol>
 
-      <Link href="/" className="mt-12 flex h-16 items-center justify-center gap-2 rounded-full bg-ink text-xl font-semibold text-white">
-        Go to Dashboard <ArrowRight className="size-5" aria-hidden />
-      </Link>
+        </div>
+        <div>
+          <ol className="mt-10 lg:mt-4">
+            <Step title="Activate kit" state="done">
+              <p className="text-lg text-zinc-700">
+                Your PetWealth health test kit is linked to <strong>{petName}</strong>
+              </p>
+              <p className="mt-2 inline-flex flex-wrap items-center gap-x-2 rounded-xl bg-lilac-100 px-3 py-1.5 font-mono text-lg">
+                <TestTube2 className="size-4 text-violet-500" aria-hidden /> <span className="whitespace-nowrap">ID: {kit.code}</span> <span className="font-sans text-zinc-500">({PANEL_LABEL[kit.panel]})</span>
+              </p>
+            </Step>
+
+            <Step n={2} title="Collect sample" state={state("collect")}>
+              {state("collect") === "current" ? (
+                <div className="space-y-5 rounded-3xl border border-zinc-200 bg-white p-4 sm:p-5">
+                  <div className="space-y-2">
+                    <h3 className="text-2xl font-semibold">{guide.title}</h3>
+                    <BookletRef pages="p.12-15" />
+                  </div>
+                  {guide.intro ? <p className="text-lg text-zinc-500">{guide.intro}</p> : null}
+                  <Rows rows={guide.rows} />
+                  <CollectedButton code={kit.code} petName={petName} />
+                </div>
+              ) : (
+                <p className="text-lg text-zinc-500">{state("collect") === "done" ? "Sample collected" : "Not collected yet"}</p>
+              )}
+            </Step>
+
+            <Step n={3} title="Pack the mailer" state={shipState}>
+              {kit.journey.step === "ship" ? (
+                <div className="space-y-4">
+                  <BookletRef pages="p.16-18" />
+                  <Rows rows={PACK} />
+                  {kit.mailerKits.length ? (
+                    <p className="text-lg text-zinc-700">
+                      Include your other tubes in the same mailer: {kit.mailerKits.map((k) => `${k.code}${k.petName ? ` (${k.petName})` : ""}`).join(", ")}.
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-lg text-zinc-500">{shipState === "done" ? "Packed" : "Ready when you are"}</p>
+              )}
+            </Step>
+
+            <Step n={4} title="Ship to the lab" state={shipState}>
+              {!mailer || mailer.status === "pending" || mailer.status === "failed" ? (
+                <p className="text-lg text-zinc-600">We&apos;re preparing your FedEx code. It will appear here shortly.</p>
+              ) : state("ship") === "done" ? (
+                <p className="text-lg text-zinc-500">On its way to the lab with FedEx · {mailer.rmaNumber}</p>
+              ) : (
+                <div className="space-y-4">
+                  <h3 className="text-2xl font-semibold">Your shipping label is ready</h3>
+                  <p className="text-lg text-zinc-600">
+                    {mailer.labelFormat === "pdf"
+                      ? "Print this label and attach it to your sealed mailer, then drop it at any FedEx location."
+                      : "Take your sealed mailer to any FedEx counter. Show them this code and they'll print the label and stick it on for you, so you don't need a printer."}
+                  </p>
+                  {mailer.labelFormat === "qr_png" ? (
+                    <div className="rounded-3xl border-2 border-dashed border-lilac-300 bg-white p-6 text-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={labelUrl!} alt={`FedEx return QR code ${mailer.rmaNumber}`} className="mx-auto aspect-square w-full max-w-64" />
+                      <p className="mt-2 text-sm text-zinc-600">RMA Number: {mailer.rmaNumber}</p>
+                    </div>
+                  ) : null}
+                  <a href={labelUrl!} target="_blank" rel="noreferrer" className="flex h-14 items-center justify-center rounded-full bg-lilac-300 text-lg font-semibold">
+                    {mailer.labelFormat === "pdf" ? "Open label to print" : "Show code at the counter"}
+                  </a>
+                  <a href={`${labelUrl}?download=1`} className="flex h-14 items-center justify-center rounded-full border border-zinc-200 bg-white text-lg font-semibold">
+                    {mailer.labelFormat === "pdf" ? "Download" : "Save to Photos"}
+                  </a>
+                  <div className="flex gap-3 rounded-3xl bg-sun-50 p-5 text-lg text-zinc-700">
+                    <Lightbulb className="mt-1 size-6 shrink-0 text-amber-500" aria-hidden />
+                    <p>
+                      Drop it off within {DROP_OFF_WITHIN_DAYS} days of collecting. Drop boxes can&apos;t print labels, so hand it over at the counter.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </Step>
+
+            <Step title="Sample mailed" state={kit.journey.done.includes("results") ? "done" : kit.journey.step === "results" ? "current" : "todo"}>
+              <h3 className="text-2xl font-semibold">{kit.status === "completed" ? `${petName}'s results are ready` : `Awaiting ${petName}'s test results`}</h3>
+              <p className="mt-1 text-lg text-zinc-600">
+                {kit.status === "completed"
+                  ? "Your report is ready to view."
+                  : `${petName.charAt(0).toUpperCase()}${petName.slice(1)}'s report will appear in your dashboard.`}
+              </p>
+              {kit.status === "rerun" ? (
+                <>
+                  <p className="mt-2 text-zinc-500">Current status: Rerunning {petName}&apos;s sample</p>
+                  {/* Shown only in the app; we don't email or text customers about reruns. */}
+                  <div className="mt-4 flex gap-3 rounded-3xl bg-sun-50 p-5 text-lg text-zinc-700">
+                    <Lightbulb className="mt-1 size-6 shrink-0 text-amber-500" aria-hidden />
+                    <p>
+                      Rerunning is very common for ensuring high-quality assurance on your results. This typically does not delay your results,
+                      but since we are a tightly integrated lab, you see in real time how things are moving forward.
+                    </p>
+                  </div>
+                </>
+              ) : kit.journey.step === "results" && kit.status !== "completed" ? (
+                <p className="mt-2 text-zinc-500">Current status: {kit.statusLabel}</p>
+              ) : null}
+              {hasReport ? (
+                <Link
+                  href={`/kits/${kit.code}/results`}
+                  className="mt-4 flex h-14 items-center justify-center gap-2 rounded-full bg-lilac-300 text-lg font-semibold"
+                >
+                  View results <ArrowRight className="size-5" aria-hidden />
+                </Link>
+              ) : null}
+            </Step>
+          </ol>
+
+          <Link href="/" className="mt-12 flex h-16 items-center justify-center gap-2 rounded-full bg-ink text-xl font-semibold text-white">
+            Go to Dashboard <ArrowRight className="size-5" aria-hidden />
+          </Link>
+        </div>
+      </div>
     </Screen>
   );
 }
