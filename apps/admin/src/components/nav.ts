@@ -25,8 +25,6 @@ export const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { href: "/receive", label: "Receive Kits", icon: "receive", permission: "kits.receive" },
       { href: "/lab-results", label: "Lab Results", icon: "results", permission: "lab_results.view" },
-      { href: "/reruns", label: "Rerun Queue", icon: "rerun", permission: "reruns.manage", soon: true },
-      { href: "/tracking", label: "Kit Tracking", icon: "tracking", permission: "tracking.manage", soon: true },
       { href: "/returns", label: "FedEx Returns", icon: "returns", permission: "kits.view" },
     ],
   },

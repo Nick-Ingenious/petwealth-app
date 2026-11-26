@@ -57,6 +57,26 @@ describe("writeLabSummary", () => {
     expect(text).toContain("Not detected (1): Salmonella");
   });
 
+  it("drops findings for pathogens that were not detected, and tells the model not to say normal flora", async () => {
+    const { client, calls } = fakeClient({
+      model: LAB_SUMMARY_MODEL,
+      stop_reason: "end_turn",
+      parsed_output: {
+        summary: "We found Giardia in Mochi's sample.",
+        findings: [
+          { name: "Giardia (G. duodenalis)", meaning: "A common parasite." },
+          { name: "Salmonella", meaning: "Not detected, which is good news." },
+        ],
+        nextSteps: ["Share this report with your vet."],
+        vetUrgency: "soon",
+        vetReason: "Giardia is common and treatable.",
+      },
+    });
+    const out = await writeLabSummary(input, client);
+    expect(out.summary.findings.map((f) => f.name)).toEqual(["Giardia (G. duodenalis)"]);
+    expect(calls[0]!.system).toContain("normal flora");
+  });
+
   it("turns refusals and cut-off replies into clear errors", async () => {
     await expect(writeLabSummary(input, fakeClient({ stop_reason: "refusal", parsed_output: null }).client)).rejects.toThrow(LabSummaryError);
     await expect(writeLabSummary(input, fakeClient({ stop_reason: "max_tokens", parsed_output: null }).client)).rejects.toThrow(/cut off/);
