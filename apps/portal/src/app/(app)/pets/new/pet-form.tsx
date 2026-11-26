@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useRef, useState } from "react";
 import { BREEDS, type Species } from "@petwealth/domain";
+import { BreedPicker } from "@/components/breed-picker";
 import { Choice, LilacButton, TextField, fieldClass } from "@/components/fields";
 import type { ActionResult } from "@/lib/action";
 import { PetPhoto } from "../[id]/pet-photo";
@@ -55,8 +56,7 @@ export function PetForm({
     null,
   );
   const [species, setSpecies] = useState<Species | "">(lockedSpecies ?? initial?.species ?? "");
-  const knownBreed = initial?.breed && species && BREEDS[species].includes(initial.breed);
-  const [breed, setBreed] = useState(initial?.breed ? (knownBreed ? initial.breed : "Other") : "");
+  const [breed, setBreed] = useState(initial?.breed ?? "");
   const [name, setName] = useState(initial?.name ?? "");
   const [customUrl, setCustomUrl] = useState(photo?.custom ? photo.photoUrl : null);
   const [breedUrl, setBreedUrl] = useState(photo && !photo.custom ? photo.photoUrl : null);
@@ -173,36 +173,17 @@ export function PetForm({
         ) : null}
       </div>
 
-      <label className="block">
-        <span className={initial ? "mb-1 block text-sm text-zinc-500" : "sr-only"}>Breed</span>
-        <select
-          name="breed"
-          required
-          value={breed}
-          onChange={(e) => {
-            setBreed(e.target.value);
-            pickBreed(species, e.target.value);
-          }}
-          disabled={!species}
-          className={fieldClass}
-        >
-          <option value="">{species ? "Breed*" : "Choose species first"}</option>
-          {species ? BREEDS[species].map((b) => <option key={b}>{b}</option>) : null}
-        </select>
-        {err("breed") ? (
-          <span className="mt-1 block text-sm text-red-600">{err("breed")}</span>
-        ) : null}
-      </label>
-      {breed === "Other" ? (
-        <TextField
-          name="breedOther"
-          label="Breed"
-          required
-          defaultValue={
-            initial?.breed && !knownBreed && initial.breed !== "Other" ? initial.breed : undefined
-          }
-        />
-      ) : null}
+      <BreedPicker
+        name="breed"
+        species={species}
+        value={breed}
+        showLabel={Boolean(initial)}
+        error={err("breed")}
+        onChange={(b) => {
+          setBreed(b);
+          pickBreed(species, b);
+        }}
+      />
 
       <Choice
         name="sex"

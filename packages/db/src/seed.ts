@@ -34,7 +34,7 @@ const db = getDb();
 const NOW = Date.now();
 const DAY = 86_400_000;
 
-const DOG_BREEDS = ["Golden Retriever", "Labrador Retriever", "French Bulldog", "Border Collie", "Siberian Husky", "Shiba Inu", "Miniature Schnauzer", "Australian Labradoodle", "Yorkiepoo", "German Shepherd", "Dachshund", "Mixed breed"];
+const DOG_BREEDS = ["Golden Retriever", "Labrador Retriever", "French Bulldog", "Border Collie", "Siberian Husky", "Shiba Inu", "Miniature Schnauzer", "Australian Labradoodle", "Yorkiepoo", "German Shepherd Dog", "Dachshund", "Mixed breed"];
 const CAT_BREEDS = ["Domestic Shorthair", "Maine Coon", "Bengal", "Sphynx", "Siamese", "Ragdoll", "British Shorthair", "Persian", "Domestic Longhair"];
 
 /** The usual path a kit takes; the seed walks it up to a target status. */

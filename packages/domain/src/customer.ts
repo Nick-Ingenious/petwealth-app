@@ -66,18 +66,3 @@ export const petPhotoSchema = z
   .regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/, "Choose a JPEG, PNG or WebP photo")
   .refine((v) => (v.length - v.indexOf(",") - 1) * 0.75 <= PET_PHOTO_MAX_BYTES, "That photo is too large. Try a smaller one.");
 
-/** Common breeds for the picker; free text is still accepted ("Other"). */
-export const BREEDS: Record<Species, string[]> = {
-  dog: [
-    "Mixed breed", "Australian Shepherd", "Beagle", "Bernese Mountain Dog", "Border Collie", "Boston Terrier", "Boxer",
-    "Bulldog", "Cavalier King Charles Spaniel", "Chihuahua", "Cocker Spaniel", "Dachshund", "Doberman Pinscher",
-    "French Bulldog", "German Shepherd", "Golden Retriever", "Goldendoodle", "Great Dane", "Havanese",
-    "Labrador Retriever", "Labradoodle", "Maltese", "Miniature Schnauzer", "Pembroke Welsh Corgi", "Pit Bull Terrier",
-    "Pomeranian", "Poodle", "Pug", "Rottweiler", "Shih Tzu", "Siberian Husky", "Shiba Inu", "Yorkshire Terrier", "Other",
-  ],
-  cat: [
-    "Domestic Shorthair", "Domestic Mediumhair", "Domestic Longhair", "Abyssinian", "American Bobtail",
-    "American Shorthair", "Bengal", "Birman", "British Shorthair", "Burmese", "Devon Rex", "Maine Coon",
-    "Norwegian Forest Cat", "Persian", "Ragdoll", "Russian Blue", "Scottish Fold", "Siamese", "Sphynx", "Other",
-  ],
-};

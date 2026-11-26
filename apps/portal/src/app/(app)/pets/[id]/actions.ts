@@ -12,7 +12,7 @@ export async function updatePetAction(petId: string, _prev: ActionResult | null,
       species: form.get("species"),
       dateOfBirth: form.get("dateOfBirth"),
       weightLbs: form.get("weightLbs"),
-      breed: form.get("breed") === "Other" ? form.get("breedOther") || "Other" : form.get("breed"),
+      breed: form.get("breed"),
       sex: form.get("sex"),
       spayedNeutered: form.get("spayedNeutered"),
     });

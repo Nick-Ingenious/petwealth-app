@@ -22,7 +22,7 @@ Kit tubes can encode `https://app.petwealth.com/register?kit=FRES-001-937`. Scan
 ## Pet avatars
 A pet shows, in order: the photo the customer chose, an AI picture of its breed, or its initial.
 - **Breed pictures** are drawn through Vercel AI Gateway (`bfl/flux-3-image`, override with `BREED_AVATAR_MODEL`) the first time anyone picks that breed, then stored in `breed_avatars` (384px JPEG, about 20 KB) and shared by every pet of that species and breed. About $0.04 each, once per breed.
-- Only breeds from the picker get a picture; "Other" (free text) never reaches the image model.
+- Only breeds from the picker list (the old app's breed table, in `packages/domain/src/breeds.ts`) get a picture; "Other" never does. The picker is a searchable "Select breed" sheet with no free text.
 - Picking a breed in the pet form shows "Adding breed image" while it's drawn (10 to 20 seconds the first time, instant after). If it fails, the form says "Breed image unavailable." and the pet keeps its initial; saving tries again in the background.
 - A photo the customer chose is never replaced. "Remove custom photo (Use AI Avatar)" goes back to the breed picture.
 - Auth: Vercel OIDC on deployments; locally, a linked project (`vercel link`) or `AI_GATEWAY_API_KEY`.
