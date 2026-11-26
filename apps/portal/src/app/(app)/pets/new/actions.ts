@@ -1,7 +1,8 @@
 "use server";
 
+import { after } from "next/server";
 import { redirect } from "next/navigation";
-import { createPet } from "@petwealth/api";
+import { createPet, ensurePetBreedAvatar, previewBreedAvatar } from "@petwealth/api";
 import { runAction, type ActionResult } from "@/lib/action";
 
 /** Only allow returning to our own register/home pages after adding a pet. */
@@ -26,5 +27,12 @@ export async function addPetAction(_prev: ActionResult | null, form: FormData): 
     }),
   );
   if (!result.ok) return result;
+  // Usually the form already drew the breed picture; if not, draw it after the response.
+  if (!result.data.photoUrl) after(() => ensurePetBreedAvatar(result.data.id));
   redirect(safeReturn(form.get("returnTo"), result.data.id) as never);
+}
+
+/** The breed picture for the pet form ("Adding breed image" while it's drawn the first time). */
+export async function breedAvatarAction(species: string, breed: string): Promise<ActionResult<{ url: string | null; failed: boolean }>> {
+  return runAction((ctx) => previewBreedAvatar(ctx, { species, breed }));
 }

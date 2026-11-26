@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { removeMyPetPhoto, setMyPetPhoto, updateMyPet } from "@petwealth/api";
+import { after } from "next/server";
+import { ensurePetBreedAvatar, removeMyPetPhoto, setMyPetPhoto, updateMyPet } from "@petwealth/api";
 import { runAction, type ActionResult } from "@/lib/action";
 
 export async function updatePetAction(petId: string, _prev: ActionResult | null, form: FormData): Promise<ActionResult> {
   const result = await runAction(async (ctx) => {
-    await updateMyPet(ctx, petId, {
+    const pet = await updateMyPet(ctx, petId, {
       name: form.get("name"),
       species: form.get("species"),
       dateOfBirth: form.get("dateOfBirth"),
@@ -15,6 +16,7 @@ export async function updatePetAction(petId: string, _prev: ActionResult | null,
       sex: form.get("sex"),
       spayedNeutered: form.get("spayedNeutered"),
     });
+    if (!pet.photoUrl) after(() => ensurePetBreedAvatar(pet.id));
     return undefined;
   });
   if (!result.ok) return result;
@@ -28,11 +30,9 @@ export async function setPetPhotoAction(petId: string, dataUrl: string): Promise
   return result;
 }
 
-export async function removePetPhotoAction(petId: string): Promise<ActionResult> {
-  const result = await runAction(async (ctx) => {
-    await removeMyPetPhoto(ctx, petId);
-    return undefined;
-  });
+/** "Remove custom photo (Use AI Avatar)": back to the breed picture. */
+export async function removePetPhotoAction(petId: string): Promise<ActionResult<{ photoUrl: string | null }>> {
+  const result = await runAction((ctx) => removeMyPetPhoto(ctx, petId));
   if (result.ok) revalidatePath("/", "layout");
   return result;
 }

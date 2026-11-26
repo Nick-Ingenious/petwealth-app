@@ -2,7 +2,9 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { formatKitCode } from "@petwealth/domain";
-import { eq, getDb, schema as s } from "@petwealth/db";
+import { and, eq, getDb, inArray, schema as s } from "@petwealth/db";
+import { BreedAvatarError, type BreedAvatarGenerator } from "@petwealth/integrations/ai";
+import { ensurePetBreedAvatar, getBreedAvatarImage } from "./services/breed-avatars";
 import { TestCarrier } from "@petwealth/integrations/carrier";
 import {
   checkKitCode,
@@ -22,11 +24,16 @@ import {
   getMyMailerLabel,
   getPortalHome,
   markSampleCollected,
+  previewBreedAvatar,
   registerMyKits,
   resolveCustomerContext,
 } from "./services/portal";
 
 const run = process.env.RUN_DB_TESTS === "1";
+/** Tests never call the real image model. */
+const noPicture: BreedAvatarGenerator = async () => {
+  throw new BreedAvatarError("image model not available in tests");
+};
 const email = () => `portal.${randomInt(1e9)}@example.com`;
 const profile = (address = true) => ({
   firstName: "Nina",
@@ -139,7 +146,7 @@ describe.skipIf(!run)("customer portal (db)", () => {
     expect((await getMyPetPhoto(a.ctx, a.pet.id)).mimeType).toBe("image/png");
     await expect(getMyPetPhoto(b.ctx, a.pet.id)).rejects.toMatchObject({ status: 404 });
     await expect(setMyPetPhoto(a.ctx, a.pet.id, "data:text/html;base64,PGgxPg==")).rejects.toThrow();
-    await removeMyPetPhoto(a.ctx, a.pet.id);
+    await removeMyPetPhoto(a.ctx, a.pet.id, { generate: noPicture });
     expect((await getMyPet(a.ctx, a.pet.id)).photoUrl).toBeNull();
 
     // A pet with a kit keeps its species and can't be deleted.
@@ -153,6 +160,52 @@ describe.skipIf(!run)("customer portal (db)", () => {
     await deleteMyPet(a.ctx, extra.id);
     await expect(getMyPet(a.ctx, extra.id)).rejects.toMatchObject({ status: 404 });
   });
+  it("gives pets without a photo an AI picture of their breed, drawn once and shared", async () => {
+    const db = getDb();
+    await db.delete(s.breedAvatars).where(and(eq(s.breedAvatars.species, "dog"), inArray(s.breedAvatars.breed, ["Beagle", "Pug"])));
+    let calls = 0;
+    const generate: BreedAvatarGenerator = async () => {
+      calls++;
+      return { mimeType: "image/png", base64: "iVBORw0KGgo=", model: "test/fake" };
+    };
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+    const dog = { ...felix, name: "Rex", species: "dog" };
+    const { ctx } = await onboarded();
+
+    // The form's preview: only picker breeds, and a failure is reported, not thrown.
+    expect(await previewBreedAvatar(ctx, { species: "dog", breed: "Other" }, { generate })).toEqual({ url: null, failed: false });
+    expect(await previewBreedAvatar(ctx, { species: "dog", breed: "Sprocket the robot" }, { generate })).toEqual({ url: null, failed: false });
+    expect(await previewBreedAvatar(ctx, { species: "dog", breed: "Pug" }, { generate: noPicture })).toEqual({ url: null, failed: true });
+    expect(calls).toBe(0);
+    const beagle = await previewBreedAvatar(ctx, { species: "dog", breed: "Beagle" }, { generate });
+    expect(beagle.url).toMatch(/^\/api\/breed-avatars\/[0-9a-f-]{36}\?v=/);
+    expect((await previewBreedAvatar(ctx, { species: "dog", breed: "Beagle" }, { generate })).url).toBe(beagle.url);
+    expect(calls).toBe(1); // shared, not redrawn
+    const id = beagle.url!.split("/")[3]!.split("?")[0]!;
+    expect((await getBreedAvatarImage(id)).mimeType).toBe("image/png");
+
+    // Saving uses the picture; a breed without one yet shows the initial until it's drawn after saving.
+    const rex = await createPet(ctx, { ...dog, breed: "Beagle" });
+    expect(rex.photoUrl).toBe(beagle.url);
+    expect((await updateMyPet(ctx, rex.id, { ...dog, breed: "Pug" })).photoUrl).toBeNull();
+    await ensurePetBreedAvatar(rex.id, { generate });
+    const pug = (await getMyPet(ctx, rex.id)).photoUrl;
+    expect(pug).toMatch(/^\/api\/breed-avatars\//);
+    expect(pug).not.toBe(beagle.url);
+    expect(calls).toBe(2);
+
+    // A photo the customer chose stays through breed changes; removing it brings the breed picture back.
+    const { photoUrl: custom } = await setMyPetPhoto(ctx, rex.id, png);
+    expect((await updateMyPet(ctx, rex.id, { ...dog, breed: "Beagle" })).photoUrl).toBe(custom);
+    await ensurePetBreedAvatar(rex.id, { generate }); // never replaces a chosen photo
+    expect((await getMyPet(ctx, rex.id)).photoUrl).toBe(custom);
+    expect(await removeMyPetPhoto(ctx, rex.id, { generate })).toEqual({ photoUrl: beagle.url });
+
+    // Free-text breeds ("Other") never get a picture.
+    expect((await updateMyPet(ctx, rex.id, { ...dog, breed: "Shelter mix" })).photoUrl).toBeNull();
+    expect(calls).toBe(2);
+  });
+
   it("deletes an account: personal details and pets go, kits, results, orders and addresses stay", async () => {
     const { ctx, pet } = await onboarded();
     const db = getDb();

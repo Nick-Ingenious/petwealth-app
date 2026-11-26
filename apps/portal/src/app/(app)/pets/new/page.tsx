@@ -5,6 +5,8 @@ import { Screen } from "@/components/brand";
 import { PetForm } from "./pet-form";
 
 export const metadata = { title: "Add Pet" };
+/** Drawing a new breed picture can take 10 to 20 seconds. */
+export const maxDuration = 60;
 
 export default async function AddPetPage({ searchParams }: PageProps<"/pets/new">) {
   const sp = await searchParams;

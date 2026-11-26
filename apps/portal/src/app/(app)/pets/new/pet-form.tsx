@@ -1,10 +1,11 @@
 "use client";
 
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState, useRef, useState } from "react";
 import { BREEDS, type Species } from "@petwealth/domain";
 import { Choice, LilacButton, TextField, fieldClass } from "@/components/fields";
 import type { ActionResult } from "@/lib/action";
-import { addPetAction } from "./actions";
+import { PetPhoto } from "../[id]/pet-photo";
+import { addPetAction, breedAvatarAction } from "./actions";
 
 export interface PetInitial {
   name: string;
@@ -16,6 +17,16 @@ export interface PetInitial {
   spayedNeutered: boolean | null;
 }
 
+/** Existing pet's avatar: its id, current photo URL, and whether the customer chose that photo. */
+export interface PetPhotoInitial {
+  petId: string;
+  photoUrl: string | null;
+  custom: boolean;
+}
+
+/** Breeds from the picker get an AI picture; "Other" (free text) doesn't. */
+const hasBreedPicture = (species: Species | "", breed: string) => Boolean(species && breed && breed !== "Other" && BREEDS[species].includes(breed));
+
 /**
  * Add Pet, and Edit Pet when `initial` and `formAction` are given. Edit passes
  * its own action (bound to the pet id) and a reason when species is locked.
@@ -25,6 +36,7 @@ export function PetForm({
   lockedReason,
   returnTo,
   initial,
+  photo,
   formAction,
   submitLabel = "Add Pet",
   pendingLabel = "Adding…",
@@ -33,6 +45,7 @@ export function PetForm({
   lockedReason?: string;
   returnTo: string;
   initial?: PetInitial;
+  photo?: PetPhotoInitial;
   formAction?: (prev: ActionResult | null, form: FormData) => Promise<ActionResult>;
   submitLabel?: string;
   pendingLabel?: string;
@@ -44,6 +57,33 @@ export function PetForm({
   const [species, setSpecies] = useState<Species | "">(lockedSpecies ?? initial?.species ?? "");
   const knownBreed = initial?.breed && species && BREEDS[species].includes(initial.breed);
   const [breed, setBreed] = useState(initial?.breed ? (knownBreed ? initial.breed : "Other") : "");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [customUrl, setCustomUrl] = useState(photo?.custom ? photo.photoUrl : null);
+  const [breedUrl, setBreedUrl] = useState(photo && !photo.custom ? photo.photoUrl : null);
+  const [breedPending, setBreedPending] = useState(false);
+  const [breedFailed, setBreedFailed] = useState(false);
+  const latest = useRef(0);
+
+  /** Draw (or fetch) the breed picture; only the most recent choice wins. */
+  function pickBreed(nextSpecies: Species | "", nextBreed: string) {
+    const ticket = ++latest.current;
+    setBreedFailed(false);
+    if (!hasBreedPicture(nextSpecies, nextBreed)) {
+      setBreedUrl(null);
+      setBreedPending(false);
+      return;
+    }
+    setBreedUrl(null); // show the initial, not the previous breed, while this one loads
+    setBreedPending(true);
+    breedAvatarAction(nextSpecies, nextBreed)
+      .then((res) => {
+        if (ticket !== latest.current) return;
+        setBreedUrl(res.ok ? res.data.url : null);
+        setBreedFailed(!res.ok || res.data.failed);
+      })
+      .catch(() => ticket === latest.current && setBreedFailed(true))
+      .finally(() => ticket === latest.current && setBreedPending(false));
+  }
   const err = (k: string) => (state && !state.ok ? state.fieldErrors?.[k]?.[0] : undefined);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -58,9 +98,26 @@ export function PetForm({
       }}
       onChange={(e) => {
         const t = e.target as unknown as HTMLInputElement;
-        if (t.name === "species") setSpecies(t.value as Species);
+        if (t.name === "name") setName(t.value);
+        if (t.name === "species" && t.value !== species) {
+          // A new species clears the breed (and its picture).
+          setSpecies(t.value as Species);
+          setBreed("");
+          pickBreed(t.value as Species, "");
+        }
       }}
     >
+      <PetPhoto
+        petId={photo?.petId}
+        name={name}
+        species={species}
+        customUrl={customUrl}
+        breedUrl={breedUrl}
+        breedPending={breedPending}
+        breedFailed={breedFailed}
+        onCustomChange={setCustomUrl}
+        onBreedUrl={setBreedUrl}
+      />
       <input type="hidden" name="returnTo" value={returnTo} />
       {lockedSpecies ? <input type="hidden" name="species" value={lockedSpecies} /> : null}
       <TextField
@@ -122,7 +179,10 @@ export function PetForm({
           name="breed"
           required
           value={breed}
-          onChange={(e) => setBreed(e.target.value)}
+          onChange={(e) => {
+            setBreed(e.target.value);
+            pickBreed(species, e.target.value);
+          }}
           disabled={!species}
           className={fieldClass}
         >
