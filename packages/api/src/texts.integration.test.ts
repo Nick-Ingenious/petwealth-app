@@ -1,12 +1,13 @@
 /** Customer texts against a real database (RUN_DB_TESTS=1). Nothing is sent: TestSmsSender records. */
 import { randomInt } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { ALL_PERMISSIONS, formatKitCode } from "@petwealth/domain";
+import { ALL_PERMISSIONS } from "@petwealth/domain";
 import { and, eq, getDb, schema as s } from "@petwealth/db";
 import { TestCarrier } from "@petwealth/integrations/carrier";
 import { TestEmailSender } from "@petwealth/integrations/email";
 import { SmsError, TestSmsSender, type SmsSender } from "@petwealth/integrations/sms";
 import type { StaffContext } from "./context";
+import { freshKitCode } from "./test-kit-codes";
 import { receiveKit } from "./services/kits";
 import { MAIL_SAMPLE_REMINDER, queueMailSampleReminders } from "./services/notifications";
 import { registerKitsAsStaff } from "./services/returns";
@@ -39,7 +40,7 @@ async function customer({ smsOptIn = true, region = "TX" } = {}) {
 }
 
 async function kitAtLabDoor(customerId: string, petId: string) {
-  const code = formatKitCode("cat", "fecal", 900 + randomInt(99), randomInt(1000));
+  const code = await freshKitCode("cat", "fecal");
   await getDb().insert(s.kits).values({ code, customerId, petId, species: "cat", panel: "fecal", status: "in_transit" });
   return code;
 }
@@ -122,7 +123,7 @@ describe.skipIf(!run)("customer texts (db)", () => {
     const res = await registerKitsAsStaff(
       staff,
       c.id,
-      { kits: [{ kitCode: formatKitCode("cat", "oral", 900 + randomInt(99), randomInt(1000)), petId: pet.id }] },
+      { kits: [{ kitCode: await freshKitCode("cat", "oral"), petId: pet.id }] },
       { carrier: new TestCarrier(), email: new TestEmailSender() },
     );
     const start = DAYTIME - 4 * 24 * 60 * MIN;
