@@ -19,5 +19,7 @@ Monorepo, schema + seed, kit lifecycle, RBAC, admin: Dashboard, Orders, Tests, C
 ## Data migration (when the AWS SQL dump arrives)
 Restore into a scratch DB → `docs/LEGACY_MAPPING.md` → idempotent ETL into `packages/db/migrate-legacy/` keyed on `legacy_id` → reconciliation report (counts per status, revenue) → dry run on a Neon branch → cutover. Customer passwords move only if the hash format is importable into Clerk; otherwise send reset emails at cutover.
 
+The full step-by-step for the day (Clerk production, final domains `app.` and `admin.petwealth.com`, Shopify and Twilio webhooks, the RMA fix, checks and rollback) is in [SWITCHOVER.md](SWITCHOVER.md).
+
 ## Later
 Expo mobile app with push notifications (M4), supplements & recommendations (M5), wholesale accounts.
