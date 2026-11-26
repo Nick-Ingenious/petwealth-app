@@ -3,12 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Third-party adapters (Shopify, FedEx, Resend email, Claude lab summaries; later Twilio/lab). Pure parsing + verification; no database access.",
+  "description": "Third-party adapters (Shopify, FedEx, Resend email, Claude lab summaries, AI breed pictures, Twilio SMS). Pure parsing + verification; no database access.",
   "exports": {
     "./shopify": "./src/shopify/index.ts",
     "./carrier": "./src/carrier/index.ts",
     "./email": "./src/email/index.ts",
-    "./ai": "./src/ai/index.ts"
+    "./ai": "./src/ai/index.ts",
+    "./sms": "./src/sms/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
