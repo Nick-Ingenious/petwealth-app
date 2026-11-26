@@ -6,10 +6,11 @@ import type { McpAuthOptions } from "@clerk/mcp-tools/next";
  * to one of these (the OAuth `resource`), and every request is checked against
  * them. Set MCP_RESOURCE_URLS (comma separated) to add domains.
  */
+// The first one is the main address: links the assistant returns use it.
 const DEFAULT_URLS = [
-  "https://petwealth-admin.perfectlaunch.ai/api/mcp",
   "https://admin-v2.petwealth.com/api/mcp",
   "https://admin.petwealth.com/api/mcp",
+  "https://petwealth-admin.perfectlaunch.ai/api/mcp",
 ];
 
 export const mcpResourceUrls: string[] = process.env.MCP_RESOURCE_URLS
