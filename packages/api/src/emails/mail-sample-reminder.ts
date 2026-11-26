@@ -1,4 +1,4 @@
-import { DROP_OFF_WITHIN_DAYS } from "@petwealth/domain";
+import { DROP_OFF_WITHIN_DAYS, PANEL_LABEL } from "@petwealth/domain";
 import type { EmailAttachment } from "@petwealth/integrations/email";
 import { button, escapeHtml, layout, paragraph, stepList } from "./layout";
 import { describeKits, fedexCodeBlock, type ReturnLabelReadyData } from "./return-label-ready";
@@ -9,13 +9,25 @@ export type MailSampleReminderData = ReturnLabelReadyData & {
 };
 
 /**
+ * "Biscuit's Fecal and Oral tests" when every pet is named. We often don't
+ * have the pet's name yet, so if any is missing we leave names out entirely:
+ * "your Fecal and Oral tests", "your Fecal tests".
+ */
+export function describeReminderKits(kits: MailSampleReminderData["kits"]): string {
+  if (kits.length && kits.every((k) => k.petName?.trim())) return describeKits(kits);
+  const panels = [...new Set(kits.map((k) => PANEL_LABEL[k.panel]))];
+  const list = panels.length < 2 ? panels.join("") : `${panels.slice(0, -1).join(", ")} and ${panels.at(-1)}`;
+  return `your ${list} test${kits.length > 1 ? "s" : ""}`;
+}
+
+/**
  * "Ready to mail your sample?": a gentle nudge when a mailer has its FedEx
  * code but FedEx hasn't picked it up yet. The code (or label) is attached
  * again so the customer has everything in one place.
  */
 export function mailSampleReminderEmail(d: MailSampleReminderData): { subject: string; html: string; text: string; attachments: EmailAttachment[] } {
   const pdf = d.label?.format === "pdf";
-  const what = describeKits(d.kits);
+  const what = describeReminderKits(d.kits);
   const hi = d.firstName ? `Hi ${d.firstName},` : "Hi,";
   const subject = d.reminder === 1 ? "Ready to mail your sample?" : `Your FedEx ${pdf ? "label" : "code"} is still waiting`;
   const intro =

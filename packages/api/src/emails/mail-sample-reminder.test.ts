@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mailSampleReminderEmail, type MailSampleReminderData } from "./mail-sample-reminder";
+import { describeReminderKits, mailSampleReminderEmail, type MailSampleReminderData } from "./mail-sample-reminder";
 
 const base: MailSampleReminderData = {
   reminder: 1,
@@ -10,7 +10,23 @@ const base: MailSampleReminderData = {
   kitUrl: "https://app.petwealth.com/kits/CFEC-903-101",
 };
 
+describe("describeReminderKits", () => {
+  it("uses pet names only when every kit has one", () => {
+    expect(describeReminderKits([{ code: "a", petName: "Biscuit", panel: "fecal" }, { code: "b", petName: "Biscuit", panel: "oral" }])).toBe("Biscuit's Fecal and Oral tests");
+    expect(describeReminderKits([{ code: "a", petName: null, panel: "fecal" }])).toBe("your Fecal test");
+    expect(describeReminderKits([{ code: "a", petName: "Biscuit", panel: "fecal" }, { code: "b", petName: null, panel: "oral" }])).toBe("your Fecal and Oral tests");
+    expect(describeReminderKits([{ code: "a", petName: null, panel: "fecal" }, { code: "b", petName: " ", panel: "fecal" }])).toBe("your Fecal tests");
+  });
+});
+
 describe("mailSampleReminderEmail", () => {
+  it("reads naturally without a pet name", () => {
+    const e = mailSampleReminderEmail({ ...base, kits: [{ code: "CFEC-903-101", petName: null, panel: "fecal" }] });
+    expect(e.text).toContain("Hi Test, our lab is ready for your Fecal test.");
+    const e2 = mailSampleReminderEmail({ ...base, reminder: 2, firstName: null, kits: [{ code: "CFEC-903-101", petName: null, panel: "fecal" }] });
+    expect(e2.text).toContain("Hi, FedEx hasn't scanned the mailer with your Fecal test yet.");
+  });
+
   it("nudges gently, with the FedEx code attached again", () => {
     const e = mailSampleReminderEmail(base);
     expect(e.subject).toBe("Ready to mail your sample?");
