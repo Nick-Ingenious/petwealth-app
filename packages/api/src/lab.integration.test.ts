@@ -5,9 +5,10 @@
  */
 import { randomInt, randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { ALL_PERMISSIONS, formatKitCode } from "@petwealth/domain";
+import { ALL_PERMISSIONS } from "@petwealth/domain";
 import { and, eq, getDb, schema as s } from "@petwealth/db";
 import type { CustomerContext, StaffContext } from "./context";
+import { freshKitCodes } from "./test-kit-codes";
 import { draftAiReport, saveAiReport } from "./services/ai-reports";
 import {
   assignUnmatchedSample,
@@ -44,10 +45,7 @@ async function setup() {
   };
   const [customer] = await db.insert(s.customers).values({ email: `lab.${n}@example.com`, firstName: "Lab", lastName: `Test${n}` }).returning();
   const [pet] = await db.insert(s.pets).values({ customerId: customer!.id, name: "Mochi", species: "cat" }).returning();
-  const lot = 800 + randomInt(99);
-  const serials = new Set<number>();
-  while (serials.size < 4) serials.add(randomInt(1000));
-  const codes = [...serials].map((n) => formatKitCode("cat", "fecal", lot, n));
+  const codes = await freshKitCodes(4, "cat", "fecal", { sameLot: true });
   const kits = await db
     .insert(s.kits)
     .values(

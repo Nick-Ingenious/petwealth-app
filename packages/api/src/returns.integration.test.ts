@@ -5,10 +5,11 @@
  */
 import { randomInt } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { ALL_PERMISSIONS, formatKitCode } from "@petwealth/domain";
+import { ALL_PERMISSIONS } from "@petwealth/domain";
 import { and, eq, getDb, inArray, schema as s } from "@petwealth/db";
 import { CarrierError, TestCarrier, type Carrier } from "@petwealth/integrations/carrier";
 import type { StaffContext } from "./context";
+import { freshKitCode } from "./test-kit-codes";
 import { EmailError, TestEmailSender, type EmailSender } from "@petwealth/integrations/email";
 import { deliverQueuedEmails, MAIL_SAMPLE_REMINDER, queueMailSampleReminders } from "./services/notifications";
 import { receiveKit, transitionKit } from "./services/kits";
@@ -25,7 +26,7 @@ const staff: StaffContext = {
   via: "admin_ui",
 };
 
-const code = (species: "dog" | "cat", panel: "fecal" | "respiratory" | "oral") => formatKitCode(species, panel, 900 + randomInt(99), randomInt(1000));
+const code = (species: "dog" | "cat", panel: "fecal" | "respiratory" | "oral") => freshKitCode(species, panel);
 
 async function makeCustomer({ withAddress = true } = {}) {
   const db = getDb();
@@ -61,8 +62,8 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
 
   it("registers kits together into one mailer with an RMA and QR code", async () => {
     const { customer, cat, dog, orderedKit } = await makeCustomer();
-    const catCode = code("cat", "fecal");
-    const dogCode = code("dog", "respiratory");
+    const catCode = await code("cat", "fecal");
+    const dogCode = await code("dog", "respiratory");
     const mail = new TestEmailSender();
     const res = await registerKitsAsStaff(
       staff,
@@ -99,7 +100,7 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
   it("keeps the email queued through a Resend outage and fails it on a bad request", async () => {
     const { customer, cat } = await makeCustomer();
     const outage: EmailSender = { name: "test", send: async () => Promise.reject(new EmailError("Resend rejected the email: busy", true)) };
-    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: code("cat", "oral"), petId: cat.id }] }, { carrier: new TestCarrier(), email: outage });
+    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: await code("cat", "oral"), petId: cat.id }] }, { carrier: new TestCarrier(), email: outage });
     expect(res.label).toEqual({ status: "label_created" }); // email trouble never undoes the label
     const [row] = await getDb().select().from(s.notifications).where(eq(s.notifications.customerId, customer.id));
     expect(row).toMatchObject({ status: "queued", error: "Resend rejected the email: busy" });
@@ -112,24 +113,24 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
   it("rejects the wrong species, duplicate registration and other customers' kits", async () => {
     const a = await makeCustomer();
     const b = await makeCustomer();
-    await expect(registerKitsAsStaff(staff, a.customer.id, { kits: [{ kitCode: code("cat", "oral"), petId: a.dog.id }] })).rejects.toMatchObject({
+    await expect(registerKitsAsStaff(staff, a.customer.id, { kits: [{ kitCode: await code("cat", "oral"), petId: a.dog.id }] })).rejects.toMatchObject({
       status: 422,
       message: expect.stringContaining("is a cat kit, but Rex is a dog"),
     });
 
-    const taken = code("dog", "fecal");
+    const taken = await code("dog", "fecal");
     await registerKitsAsStaff(staff, a.customer.id, { kits: [{ kitCode: taken, petId: a.dog.id }] }, { carrier: new TestCarrier() });
     await expect(registerKitsAsStaff(staff, a.customer.id, { kits: [{ kitCode: taken, petId: a.dog.id }] })).rejects.toMatchObject({ status: 409 });
     await expect(registerKitsAsStaff(staff, b.customer.id, { kits: [{ kitCode: taken, petId: b.dog.id }] })).rejects.toMatchObject({
       status: 409,
       message: expect.stringContaining("another account"),
     });
-    await expect(registerKitsAsStaff(staff, a.customer.id, { kits: [{ kitCode: code("dog", "oral"), petId: b.dog.id }] })).rejects.toMatchObject({ status: 422 });
+    await expect(registerKitsAsStaff(staff, a.customer.id, { kits: [{ kitCode: await code("dog", "oral"), petId: b.dog.id }] })).rejects.toMatchObject({ status: 422 });
   });
 
   it("requires a shipping address", async () => {
     const { customer, cat } = await makeCustomer({ withAddress: false });
-    await expect(registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: code("cat", "fecal"), petId: cat.id }] })).rejects.toMatchObject({
+    await expect(registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: await code("cat", "fecal"), petId: cat.id }] })).rejects.toMatchObject({
       status: 422,
       message: expect.stringContaining("shipping address"),
     });
@@ -137,7 +138,7 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
 
   it("keeps the registration when FedEx fails, and retries cleanly", async () => {
     const { customer, cat } = await makeCustomer();
-    const kitCode = code("cat", "respiratory");
+    const kitCode = await code("cat", "respiratory");
     const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode, petId: cat.id }] }, { carrier: failing });
     expect(res.label).toMatchObject({ status: "failed", error: expect.stringContaining("POSTALSTATE") });
     const kit = await getDb().query.kits.findFirst({ where: eq(s.kits.code, kitCode) });
@@ -150,7 +151,7 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
 
   it("lists return mailers with search and status filter for the FedEx Returns page", async () => {
     const { customer, cat } = await makeCustomer();
-    const kitCode = code("cat", "oral");
+    const kitCode = await code("cat", "oral");
     const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode, petId: cat.id }] }, { carrier: failing });
 
     const byKit = await listReturnShipments(staff, { q: kitCode });
@@ -170,7 +171,7 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
     const db = getDb();
     const DAY = 24 * 60 * 60 * 1000;
     const { customer, cat } = await makeCustomer();
-    const kitCode = code("cat", "fecal");
+    const kitCode = await code("cat", "fecal");
     const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode, petId: cat.id }] }, { carrier: new TestCarrier(), email: new TestEmailSender() });
     const start = Date.now();
     await db.update(s.shipments).set({ createdAt: new Date(start) }).where(eq(s.shipments.id, res.shipmentId));
@@ -209,7 +210,7 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
     const db = getDb();
     const DAY = 24 * 60 * 60 * 1000;
     const { customer, cat } = await makeCustomer();
-    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: code("cat", "oral"), petId: cat.id }] }, { carrier: new TestCarrier(), email: new TestEmailSender() });
+    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: await code("cat", "oral"), petId: cat.id }] }, { carrier: new TestCarrier(), email: new TestEmailSender() });
     const start = Date.now();
     await db.update(s.shipments).set({ createdAt: new Date(start) }).where(eq(s.shipments.id, res.shipmentId));
     await queueMailSampleReminders({ now: () => start + 4 * DAY });
@@ -231,7 +232,7 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
     const res = await registerKitsAsStaff(
       staff,
       customer.id,
-      { kits: [{ kitCode: code("cat", "oral"), petId: cat.id }, { kitCode: code("dog", "oral"), petId: dog.id }] },
+      { kits: [{ kitCode: await code("cat", "oral"), petId: cat.id }, { kitCode: await code("dog", "oral"), petId: dog.id }] },
       { carrier },
     );
     const db = getDb();
@@ -261,8 +262,8 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
     const { customer, cat, dog } = await makeCustomer();
     let now = Date.now();
     const carrier = new TestCarrier(() => now);
-    const catCode = code("cat", "oral");
-    const dogCode = code("dog", "oral");
+    const catCode = await code("cat", "oral");
+    const dogCode = await code("dog", "oral");
     const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: catCode, petId: cat.id }, { kitCode: dogCode, petId: dog.id }] }, { carrier, email: new TestEmailSender() });
     const db = getDb();
     const queued = async (template: string) =>

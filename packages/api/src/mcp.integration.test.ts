@@ -4,9 +4,10 @@
  */
 import { randomInt } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { ALL_PERMISSIONS, formatKitCode, type Permission } from "@petwealth/domain";
+import { ALL_PERMISSIONS, type Permission } from "@petwealth/domain";
 import { getDb, schema as s } from "@petwealth/db";
 import type { StaffContext } from "./context";
+import { freshKitCode } from "./test-kit-codes";
 import { STAFF_TOOLS, assertAssistantAccess } from "./mcp/tools";
 
 const run = process.env.RUN_DB_TESTS === "1";
@@ -38,7 +39,7 @@ describe.skipIf(!run)("staff assistant tools (db)", () => {
     const db = getDb();
     const [customer] = await db.insert(s.customers).values({ email: `mcp.${randomInt(1e9)}@example.com`, firstName: "Mia", lastName: "Chen" }).returning();
     const [pet] = await db.insert(s.pets).values({ customerId: customer!.id, name: "Pepper", species: "cat" }).returning();
-    const code = formatKitCode("cat", "fecal", 870 + randomInt(9), randomInt(1000));
+    const code = await freshKitCode("cat", "fecal");
     await db.insert(s.kits).values({ code, customerId: customer!.id, petId: pet!.id, species: "cat", panel: "fecal", status: "received_at_lab" });
 
     expect(await call(ctx, "whoami", {})).toMatchObject({ email: ctx.email, role: "super_admin" });

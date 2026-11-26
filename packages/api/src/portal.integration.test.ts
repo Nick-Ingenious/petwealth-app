@@ -1,8 +1,9 @@
 /** Customer portal services against a real database (RUN_DB_TESTS=1). */
 import { randomInt, randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { ALL_PERMISSIONS, formatKitCode } from "@petwealth/domain";
+import { ALL_PERMISSIONS } from "@petwealth/domain";
 import type { StaffContext } from "./context";
+import { freshKitCode } from "./test-kit-codes";
 import { and, eq, getDb, inArray, schema as s } from "@petwealth/db";
 import { BreedAvatarError, type BreedAvatarGenerator } from "@petwealth/integrations/ai";
 import { ensurePetBreedAvatar, getBreedAvatarImage, listBreedAvatars, redrawBreedAvatar } from "./services/breed-avatars";
@@ -83,7 +84,7 @@ describe.skipIf(!run)("customer portal (db)", () => {
 
   it("walks a kit from registration to 'sample collected'", async () => {
     const { ctx, pet } = await onboarded();
-    const code = formatKitCode("cat", "respiratory", 950, randomInt(1000));
+    const code = (await freshKitCode("cat", "respiratory"));
     expect(await checkKitCode(ctx, code.toLowerCase())).toMatchObject({ ok: true, species: "cat", panel: "respiratory" });
 
     const res = await registerMyKits(ctx, { kits: [{ kitCode: code, petId: pet.id }] }, { carrier: new TestCarrier() });
@@ -101,7 +102,7 @@ describe.skipIf(!run)("customer portal (db)", () => {
   it("never exposes another customer's kit or label", async () => {
     const a = await onboarded();
     const b = await onboarded();
-    const code = formatKitCode("cat", "fecal", 951, randomInt(1000));
+    const code = (await freshKitCode("cat", "fecal"));
     const res = await registerMyKits(a.ctx, { kits: [{ kitCode: code, petId: a.pet.id }] }, { carrier: new TestCarrier() });
 
     await expect(getMyKit(b.ctx, code)).rejects.toMatchObject({ status: 404 });
@@ -109,7 +110,7 @@ describe.skipIf(!run)("customer portal (db)", () => {
     await expect(markSampleCollected(b.ctx, code)).rejects.toMatchObject({ status: 404 });
     expect(await checkKitCode(b.ctx, code)).toMatchObject({ ok: false, message: expect.stringContaining("another account") });
     // and B can't register their kits to A's pet
-    await expect(registerMyKits(b.ctx, { kits: [{ kitCode: formatKitCode("cat", "oral", 952, randomInt(1000)), petId: a.pet.id }] })).rejects.toMatchObject({ status: 422 });
+    await expect(registerMyKits(b.ctx, { kits: [{ kitCode: (await freshKitCode("cat", "oral")), petId: a.pet.id }] })).rejects.toMatchObject({ status: 422 });
   });
   it("updates My Information and keeps the old address", async () => {
     const { ctx } = await onboarded();
@@ -151,7 +152,7 @@ describe.skipIf(!run)("customer portal (db)", () => {
     expect((await getMyPet(a.ctx, a.pet.id)).photoUrl).toBeNull();
 
     // A pet with a kit keeps its species and can't be deleted.
-    await getDb().insert(s.kits).values({ code: formatKitCode("cat", "fecal", 953, randomInt(1000)), customerId: a.ctx.customerId, petId: a.pet.id, species: "cat", panel: "fecal", status: "assigned" });
+    await getDb().insert(s.kits).values({ code: (await freshKitCode("cat", "fecal")), customerId: a.ctx.customerId, petId: a.pet.id, species: "cat", panel: "fecal", status: "assigned" });
     expect((await listMyPets(a.ctx)).find((p) => p.id === a.pet.id)?.kitCount).toBe(1);
     await expect(updateMyPet(a.ctx, a.pet.id, { ...felix, species: "dog", breed: "Beagle" })).rejects.toThrow(/species can't change/);
     await expect(deleteMyPet(a.ctx, a.pet.id)).rejects.toMatchObject({ status: 409 });
@@ -255,7 +256,7 @@ describe.skipIf(!run)("customer portal (db)", () => {
     const [order] = await db.insert(s.orders).values({ customerId: ctx.customerId, source: "manual", subtotalCents: 9900, totalCents: 9900, placedAt: new Date(), shippingAddressId: before.addresses[0]!.id }).returning();
     const [kit] = await db
       .insert(s.kits)
-      .values({ code: formatKitCode("cat", "fecal", 954, randomInt(1000)), orderId: order!.id, customerId: ctx.customerId, petId: pet.id, species: "cat", panel: "fecal", status: "completed" })
+      .values({ code: (await freshKitCode("cat", "fecal")), orderId: order!.id, customerId: ctx.customerId, petId: pet.id, species: "cat", panel: "fecal", status: "completed" })
       .returning();
     await db.insert(s.labResults).values({ kitId: kit!.id, status: "released", healthStatus: "clean", raw: {}, reportedAt: new Date(), releasedAt: new Date() });
     await db.insert(s.notifications).values({ customerId: ctx.customerId, kitId: kit!.id, channel: "email", template: "results_ready" });
