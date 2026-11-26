@@ -10,7 +10,7 @@ import { and, eq, getDb, inArray, schema as s } from "@petwealth/db";
 import { CarrierError, TestCarrier, type Carrier } from "@petwealth/integrations/carrier";
 import type { StaffContext } from "./context";
 import { EmailError, TestEmailSender, type EmailSender } from "@petwealth/integrations/email";
-import { deliverQueuedEmails } from "./services/notifications";
+import { deliverQueuedEmails, MAIL_SAMPLE_REMINDER, queueMailSampleReminders } from "./services/notifications";
 import { receiveKit, transitionKit } from "./services/kits";
 import { listReturnShipments, refreshTracking, registerKitsAsStaff, retryReturnLabel } from "./services/returns";
 
@@ -164,6 +164,64 @@ describe.skipIf(!run)("kit registration & returns (db)", () => {
     const after = await listReturnShipments(staff, { q: kitCode });
     expect(after.items[0]).toMatchObject({ status: "label_created", rmaNumber: expect.stringMatching(/^PWR/) });
     expect((await listReturnShipments(staff, { q: after.items[0]!.rmaNumber! })).items.map((r) => r.id)).toEqual([res.shipmentId]);
+  });
+
+  it("reminds the customer to mail their sample at 3 and 10 days, then stops", async () => {
+    const db = getDb();
+    const DAY = 24 * 60 * 60 * 1000;
+    const { customer, cat } = await makeCustomer();
+    const kitCode = code("cat", "fecal");
+    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode, petId: cat.id }] }, { carrier: new TestCarrier(), email: new TestEmailSender() });
+    const start = Date.now();
+    await db.update(s.shipments).set({ createdAt: new Date(start) }).where(eq(s.shipments.id, res.shipmentId));
+    const mine = () =>
+      db.select().from(s.notifications).where(and(eq(s.notifications.customerId, customer.id), eq(s.notifications.template, MAIL_SAMPLE_REMINDER))).orderBy(s.notifications.createdAt);
+    const at = (days: number) => () => start + days * DAY;
+
+    await queueMailSampleReminders({ now: at(2) });
+    expect(await mine()).toHaveLength(0); // too early
+
+    await queueMailSampleReminders({ now: at(3.1) });
+    await queueMailSampleReminders({ now: at(3.2) }); // running again doesn't double up
+    const first = await mine();
+    expect(first).toHaveLength(1);
+
+    const mail = new TestEmailSender();
+    expect(await deliverQueuedEmails({ sender: mail, ids: [first[0]!.id], now: at(3.2) })).toMatchObject({ sent: 1 });
+    expect(mail.sent[0]).toMatchObject({ to: customer.email, subject: "Ready to mail your sample?" });
+    expect(mail.sent[0]!.text).toContain("our lab is ready for Felix's Fecal test");
+    expect(mail.sent[0]!.attachments?.map((a) => a.contentId)).toEqual(["fedex-code"]);
+
+    await queueMailSampleReminders({ now: at(8) });
+    expect(await mine()).toHaveLength(1); // second one waits for day 10
+
+    await queueMailSampleReminders({ now: at(10.5) });
+    const second = await mine();
+    expect(second).toHaveLength(2);
+    expect(await deliverQueuedEmails({ sender: mail, ids: [second[1]!.id], now: at(10.5) })).toMatchObject({ sent: 1 });
+    expect(mail.sent[1]!.subject).toBe("Your FedEx code is still waiting");
+
+    await queueMailSampleReminders({ now: at(18) });
+    expect(await mine()).toHaveLength(2); // never more than two
+  });
+
+  it("skips the reminder once the sample is on its way", async () => {
+    const db = getDb();
+    const DAY = 24 * 60 * 60 * 1000;
+    const { customer, cat } = await makeCustomer();
+    const res = await registerKitsAsStaff(staff, customer.id, { kits: [{ kitCode: code("cat", "oral"), petId: cat.id }] }, { carrier: new TestCarrier(), email: new TestEmailSender() });
+    const start = Date.now();
+    await db.update(s.shipments).set({ createdAt: new Date(start) }).where(eq(s.shipments.id, res.shipmentId));
+    await queueMailSampleReminders({ now: () => start + 4 * DAY });
+    const [row] = await db.select().from(s.notifications).where(and(eq(s.notifications.customerId, customer.id), eq(s.notifications.template, MAIL_SAMPLE_REMINDER)));
+    expect(row).toBeDefined();
+
+    // FedEx picks it up before the cron sends the reminder.
+    await db.update(s.shipments).set({ status: "in_transit" }).where(eq(s.shipments.id, res.shipmentId));
+    const mail = new TestEmailSender();
+    expect(await deliverQueuedEmails({ sender: mail, ids: [row!.id], now: () => start + 4 * DAY })).toMatchObject({ skipped: 1 });
+    expect(mail.sent).toHaveLength(0);
+    expect((await db.query.notifications.findFirst({ where: eq(s.notifications.id, row!.id) }))?.error).toBe("The sample is already on its way");
   });
 
   it("moves kits to In Transit when the mailer is picked up, and handles delivery", async () => {

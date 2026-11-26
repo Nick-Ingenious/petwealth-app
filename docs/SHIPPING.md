@@ -54,6 +54,14 @@ Set in Vercel on **both** projects, choosing the environment when you add each v
 ## Tracking cron
 `GET /api/cron/tracking`, scheduled in `apps/admin/vercel.json` (`*/30 * * * *`). Requires `Authorization: Bearer $CRON_SECRET` — Vercel sends it automatically once `CRON_SECRET` is set. Each shipment is polled at most every 25 minutes; safe to run manually.
 
+## "Mail your sample" reminders
+The notifications cron (`/api/cron/notifications`, every 10 min) queues a reminder email when a return mailer has its FedEx code but FedEx hasn't picked it up:
+- **Day 3** after the code was created: "Ready to mail your sample?"
+- **Day 10**: "Your FedEx code is still waiting". No more after that.
+- The FedEx code (or label) is attached again. Mailers older than 21 days are ignored, so switching email on never nudges about long-forgotten kits.
+- Skipped at send time if the mailer is already on its way, or if the reminder sat queued for more than 2 days.
+- Runs only when email is configured. Template: `mail_sample_reminder` (`packages/api/src/emails/mail-sample-reminder.ts`).
+
 ## Outbound (open question)
 Outbound kits aren't labelled in this app yet. If they're fulfilled in Shopify, the plan is to subscribe to Shopify's fulfillment event and record the outbound shipment, so the same cron marks kits **Kit Shipped → Kit Delivered** (the tracking logic for outbound already exists).
 

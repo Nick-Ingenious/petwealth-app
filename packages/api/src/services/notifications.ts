@@ -8,14 +8,16 @@
  * emails (on the way, received, results ready) go out from the admin cron once
  * no kit has joined them for SETTLE_MS, so kits that change together (one
  * mailer, a batch of lab scans) share one email. The cron also retries
- * temporary failures. Each send has an idempotency key built from its
+ * temporary failures. The cron also queues "mail your sample" reminders for
+ * mailers FedEx hasn't picked up yet (queueMailSampleReminders). Each send has an idempotency key built from its
  * notification ids, so a retry after a timeout never emails the customer twice.
  */
 import { createHash } from "node:crypto";
 import { KIT_STATUS_EMAILS, type KitStatus, type NotificationTemplate } from "@petwealth/domain";
-import { and, asc, desc, eq, getDb, inArray, schema as s } from "@petwealth/db";
+import { and, asc, desc, eq, getDb, gte, inArray, isNull, lte, schema as s } from "@petwealth/db";
 import { EmailError, getEmailSender, type EmailMessage, type EmailSender } from "@petwealth/integrations/email";
 import { kitStatusEmail } from "../emails/kit-status";
+import { mailSampleReminderEmail } from "../emails/mail-sample-reminder";
 import { returnLabelReadyEmail } from "../emails/return-label-ready";
 import { portalUrl } from "../portal-url";
 
@@ -26,6 +28,21 @@ export const SETTLE_MS = 2 * 60 * 1000;
 
 /** The kit must still be in this status for the email to mention it (e.g. results pulled back for a rerun). */
 const STILL_IN: Partial<Record<NotificationTemplate, KitStatus>> = { kit_in_transit: "in_transit", results_ready: "completed" };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Template name for the "mail your sample" nudge. */
+export const MAIL_SAMPLE_REMINDER = "mail_sample_reminder";
+/** Days after the FedEx code was created to send each reminder, while FedEx hasn't picked the mailer up. */
+export const MAIL_REMINDER_DAYS = [3, 10] as const;
+/** At least this long between two reminders for the same mailer. */
+const MIN_REMINDER_GAP_MS = 5 * DAY_MS;
+/** Mailers older than this are left alone, so switching reminders on never emails about long-forgotten kits. */
+const REMINDER_MAX_AGE_MS = 21 * DAY_MS;
+/** A queued reminder that couldn't go out within this long is dropped instead of sent late. */
+const REMINDER_STALE_MS = 2 * DAY_MS;
+/** Kit statuses meaning "registered, not yet on its way to the lab". */
+const AWAITING_PICKUP: KitStatus[] = ["assigned", "sample_collected"];
 
 function isStatusEmail(template: string): template is NotificationTemplate {
   return (KIT_STATUS_EMAILS as readonly string[]).includes(template);
@@ -73,10 +90,11 @@ async function renderStatusEmail(template: NotificationTemplate, rows: Notificat
   return { message: { subject: email.subject, html: email.html, text: email.text } };
 }
 
-async function render(rows: NotificationRow[]): Promise<Rendered> {
+async function render(rows: NotificationRow[], now: number): Promise<Rendered> {
   const db = getDb();
   const row = rows[0]!;
   if (isStatusEmail(row.template)) return renderStatusEmail(row.template, rows);
+  if (row.template === MAIL_SAMPLE_REMINDER) return renderMailSampleReminder(row, now);
   if (row.template === "return_label_ready") {
     // The mailer this email is about: the one holding row.kitId, else the customer's latest.
     let shipmentId: string | undefined;
@@ -115,6 +133,89 @@ async function render(rows: NotificationRow[]): Promise<Rendered> {
     return { message: { subject: email.subject, html: email.html, text: email.text, attachments: email.attachments } };
   }
   return { skip: `No email template for "${row.template}"` };
+}
+
+async function renderMailSampleReminder(row: NotificationRow, now: number): Promise<Rendered> {
+  const db = getDb();
+  if (now - row.createdAt.getTime() > REMINDER_STALE_MS) return { skip: "Reminder is too old to send" };
+  const shipmentId = row.kitId ? await returnShipmentIdForKit(row.kitId) : undefined;
+  const shipment = shipmentId
+    ? await db.query.shipments.findFirst({
+        where: eq(s.shipments.id, shipmentId),
+        with: { kits: { with: { kit: { with: { pet: true } } } }, label: true },
+      })
+    : undefined;
+  if (!shipment?.rmaNumber || !shipment.label) return { skip: "No mailer with a FedEx code for this reminder" };
+  if (shipment.status !== "label_created" || shipment.kits.some((sk) => !AWAITING_PICKUP.includes(sk.kit.status))) {
+    return { skip: "The sample is already on its way" };
+  }
+  const earlier = await db
+    .select({ id: s.notifications.id })
+    .from(s.notifications)
+    .where(and(eq(s.notifications.kitId, row.kitId!), eq(s.notifications.template, MAIL_SAMPLE_REMINDER), lte(s.notifications.createdAt, row.createdAt)));
+  const customer = await db.query.customers.findFirst({ where: eq(s.customers.id, row.customerId) });
+  const kits = shipment.kits.map((sk) => ({ code: sk.kit.code ?? "", petName: sk.kit.pet?.name ?? null, panel: sk.kit.panel }));
+  const first = kits.find((k) => k.code);
+  const email = mailSampleReminderEmail({
+    reminder: earlier.length > 1 ? 2 : 1,
+    firstName: customer?.firstName ?? null,
+    kits,
+    rmaNumber: shipment.rmaNumber,
+    label: {
+      format: shipment.labelFormat === "pdf" ? "pdf" : "qr_png",
+      mimeType: shipment.label.mimeType,
+      contentBase64: shipment.label.contentBase64,
+    },
+    kitUrl: first ? `${portalUrl()}/kits/${encodeURIComponent(first.code)}` : portalUrl(),
+  });
+  return { message: { subject: email.subject, html: email.html, text: email.text, attachments: email.attachments } };
+}
+
+/**
+ * Queue "mail your sample" reminders: one at 3 days and one at 10 days after
+ * a mailer's FedEx code was created, while FedEx still hasn't picked it up.
+ * Safe to run as often as you like; each mailer gets at most two reminders.
+ */
+export async function queueMailSampleReminders(opts: { now?: () => number } = {}): Promise<{ queued: number }> {
+  const db = getDb();
+  const now = (opts.now ?? Date.now)();
+  const candidates = await db
+    .select({ id: s.shipments.id, customerId: s.shipments.customerId, createdAt: s.shipments.createdAt })
+    .from(s.shipments)
+    .innerJoin(s.customers, eq(s.customers.id, s.shipments.customerId))
+    .where(
+      and(
+        eq(s.shipments.direction, "return"),
+        eq(s.shipments.status, "label_created"),
+        isNull(s.customers.deletedAt),
+        lte(s.shipments.createdAt, new Date(now - MAIL_REMINDER_DAYS[0] * DAY_MS)),
+        gte(s.shipments.createdAt, new Date(now - REMINDER_MAX_AGE_MS)),
+      ),
+    );
+
+  let queued = 0;
+  for (const shipment of candidates) {
+    const kits = await db
+      .select({ id: s.kits.id, status: s.kits.status })
+      .from(s.shipmentKits)
+      .innerJoin(s.kits, eq(s.kits.id, s.shipmentKits.kitId))
+      .where(eq(s.shipmentKits.shipmentId, shipment.id));
+    if (!kits.length || kits.some((k) => !AWAITING_PICKUP.includes(k.status))) continue;
+    // Reminders hang off the mailer's first kit (by id), so every run finds the same ones.
+    const anchor = kits.map((k) => k.id).sort()[0]!;
+    const sent = await db
+      .select({ createdAt: s.notifications.createdAt })
+      .from(s.notifications)
+      .where(and(eq(s.notifications.template, MAIL_SAMPLE_REMINDER), inArray(s.notifications.kitId, kits.map((k) => k.id))))
+      .orderBy(desc(s.notifications.createdAt));
+    const dueAfterDays = MAIL_REMINDER_DAYS[sent.length];
+    if (dueAfterDays === undefined) continue;
+    if (now - shipment.createdAt.getTime() < dueAfterDays * DAY_MS) continue;
+    if (sent[0] && now - sent[0].createdAt.getTime() < MIN_REMINDER_GAP_MS) continue;
+    await db.insert(s.notifications).values({ customerId: shipment.customerId!, kitId: anchor, channel: "email", template: MAIL_SAMPLE_REMINDER, createdAt: new Date(now) });
+    queued++;
+  }
+  return { queued };
 }
 
 export type DeliveryResult = { sent: number; failed: number; skipped: number; retrying: number; waiting: number };
@@ -175,7 +276,7 @@ export async function deliverQueuedEmails(opts: { sender?: EmailSender; ids?: st
       continue;
     }
     try {
-      const rendered = await render(group);
+      const rendered = await render(group, now());
       if ("skip" in rendered) {
         await settle({ status: "skipped", error: rendered.skip });
         result.skipped += group.length;
