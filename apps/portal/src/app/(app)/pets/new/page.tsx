@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { SPECIES, type Species } from "@petwealth/domain";
 import { Screen } from "@/components/brand";
+import { requireCustomer } from "@/lib/auth";
 import { PetForm } from "./pet-form";
 
 export const metadata = { title: "Add Pet" };
@@ -9,6 +10,7 @@ export const metadata = { title: "Add Pet" };
 export const maxDuration = 60;
 
 export default async function AddPetPage({ searchParams }: PageProps<"/pets/new">) {
+  await requireCustomer({ next: "/pets/new" });
   const sp = await searchParams;
   const species = typeof sp.species === "string" && (SPECIES as readonly string[]).includes(sp.species) ? (sp.species as Species) : null;
   const returnTo = typeof sp.returnTo === "string" ? sp.returnTo : "/";

@@ -1,19 +1,24 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import { RETURN_URL_HEADER } from "@/lib/return-url";
 
 /**
- * Optimistic auth check at the edge of every request: anything that isn't a
- * public route requires a Clerk session. Authorisation (is this an active
- * staff member with permission X?) happens in `requireStaff` / services.
+ * Loads the Clerk session for every request, but doesn't decide access:
+ * every page, API route and server action checks it itself (`requireStaff`,
+ * `getStaff`, `apiRoute`, `runAction`), as Clerk now recommends. Pages that
+ * find no session send the visitor to sign-in and back again, using the
+ * path passed along here.
  */
-const isPublic = createRouteMatcher(["/sign-in(.*)", "/access-denied", "/api/health"]);
-
 const devBypass =
   process.env.NODE_ENV === "development" && !process.env.VERCEL && Boolean(process.env.AUTH_DEV_BYPASS_EMAIL);
 
-const clerk = clerkMiddleware(async (auth, req) => {
-  if (!isPublic(req)) await auth.protect();
-});
+function withReturnUrl(req: NextRequest) {
+  const headers = new Headers(req.headers);
+  headers.set(RETURN_URL_HEADER, req.nextUrl.pathname + req.nextUrl.search);
+  return NextResponse.next({ request: { headers } });
+}
+
+const clerk = clerkMiddleware(async (_auth, req) => withReturnUrl(req));
 
 export default function proxy(req: NextRequest, event: NextFetchEvent) {
   // Webhooks (provider signatures) and crons (CRON_SECRET) authenticate in their
@@ -22,8 +27,8 @@ export default function proxy(req: NextRequest, event: NextFetchEvent) {
   // The staff MCP endpoint checks its own OAuth bearer token (Clerk), and the
   // OAuth discovery documents must be readable before sign-in.
   const path = req.nextUrl.pathname;
+  if (devBypass) return withReturnUrl(req);
   if (
-    devBypass ||
     path.startsWith("/api/webhooks/") ||
     path.startsWith("/api/cron/") ||
     path === "/api/mcp" ||
