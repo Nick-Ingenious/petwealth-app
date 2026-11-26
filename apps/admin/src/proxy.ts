@@ -19,7 +19,16 @@ export default function proxy(req: NextRequest, event: NextFetchEvent) {
   // Webhooks (provider signatures) and crons (CRON_SECRET) authenticate in their
   // own routes, not with staff sessions — so they never touch Clerk and keep
   // working even if Clerk is misconfigured or unavailable.
-  if (devBypass || req.nextUrl.pathname.startsWith("/api/webhooks/") || req.nextUrl.pathname.startsWith("/api/cron/")) {
+  // The staff MCP endpoint checks its own OAuth bearer token (Clerk), and the
+  // OAuth discovery documents must be readable before sign-in.
+  const path = req.nextUrl.pathname;
+  if (
+    devBypass ||
+    path.startsWith("/api/webhooks/") ||
+    path.startsWith("/api/cron/") ||
+    path === "/api/mcp" ||
+    path.startsWith("/.well-known/oauth-")
+  ) {
     return NextResponse.next();
   }
   return clerk(req, event);

@@ -15,3 +15,4 @@ export * from "./services/portal";
 export * from "./services/returns";
 export * from "./services/shopify";
 export * from "./services/staff";
+export * from "./mcp/tools";

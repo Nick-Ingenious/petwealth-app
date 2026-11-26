@@ -12,20 +12,23 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@clerk/mcp-tools": "1.0.0",
     "@clerk/nextjs": "^7.10.7",
+    "@modelcontextprotocol/server": "2.4.0",
     "@petwealth/api": "workspace:*",
     "@petwealth/db": "workspace:*",
     "@petwealth/domain": "workspace:*",
+    "@petwealth/integrations": "workspace:*",
     "@petwealth/ui": "workspace:*",
     "@scalar/nextjs-api-reference": "^0.12.21",
     "lucide-react": "^1.77.0",
+    "mcp-handler": "2.3.1",
     "next": "^16.4.6",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "recharts": "^3.11.0",
     "server-only": "^0.0.1",
-    "zod": "^4.6.7",
-    "@petwealth/integrations": "workspace:*"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
