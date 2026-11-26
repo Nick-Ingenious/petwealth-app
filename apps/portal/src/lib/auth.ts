@@ -1,9 +1,11 @@
 import "server-only";
 import { cache } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { resolveCustomerContext, type CustomerContext } from "@petwealth/api";
 import { DEV_BYPASS_CUSTOMER_EMAIL } from "./env";
+import { RETURN_URL_HEADER, signInPath } from "./return-url";
 
 /** The signed-in customer for this request (memoised), or null. */
 export const getCustomer = cache(async (): Promise<CustomerContext | null> => {
@@ -24,12 +26,14 @@ export function safeNext(raw: unknown): string {
 }
 
 /**
- * Gate for every signed-in page. New customers go through onboarding first and
- * then come back to `next` — so a QR deep link (/register?kit=…) survives sign-up.
+ * Gate for every signed-in page. Signed-out visitors go to sign-in and come
+ * back to this page. New customers go through onboarding first and then come
+ * back to `next` — so a QR deep link (/register?kit=…) survives sign-up.
  */
 export async function requireCustomer(opts: { allowOnboarding?: boolean; next?: string } = {}): Promise<CustomerContext> {
   const customer = await getCustomer();
-  if (!customer) redirect("/sign-in" as never);
+  // Back to this exact page after signing in (the proxy passes the requested path).
+  if (!customer) redirect(signInPath((await headers()).get(RETURN_URL_HEADER) ?? opts.next) as never);
   if (customer.needsOnboarding && !opts.allowOnboarding) {
     redirect(`/onboarding${opts.next ? `?next=${encodeURIComponent(opts.next)}` : ""}` as never);
   }
