@@ -1,5 +1,6 @@
 export * from "./catalog";
 export * from "./customer";
+export * from "./breeds";
 export * from "./kit-code";
 export * from "./kit-lifecycle";
 export * from "./money";
