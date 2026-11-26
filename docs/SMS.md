@@ -23,7 +23,7 @@ Pet names are left out when any pet in the text has no name yet ("Your sample").
 ## Turning it on (Twilio, toll-free number)
 We text from a **toll-free number**, which needs toll-free verification (not A2P 10DLC). Until it's verified, carriers block texts from it.
 
-**Status (2026-11-26):** compliance profile complete, toll-free registration in review. `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` are set in production; `TWILIO_FROM_NUMBER` is not, so texts are off.
+**Status (2026-11-26):** number **(855) 893-0444**. Compliance profile complete; toll-free verification still **in review**. All three settings are set in production (`TWILIO_FROM_NUMBER` = `+18558930444`), so **texts are on** in the app. This was done before verification on purpose, while the app isn't live: until Twilio verifies the number, carriers block the texts and they're recorded as failed. Verify before customers rely on texts.
 
 1. **Toll-free verification** (Twilio Console > Phone Numbers > the number > Regulatory / "Finish setting up your phone number"): business details, use case "Account notifications", the message examples above, and the opt-in text from the portal's text alerts checkbox. For **Opt-in policy proof**, use these screenshots of the sign-up screen (one per line):
    - `https://app-v2.petwealth.com/sms/opt-in-1-sign-up-phone.png`
@@ -32,8 +32,8 @@ We text from a **toll-free number**, which needs toll-free verification (not A2P
    Terms: `https://petwealth.com/pages/terms`. Privacy policy: `https://petwealth.com/pages/privacy-policy`, which should say mobile information isn't shared with third parties for marketing. Review usually takes a few days to two weeks.
 2. **Replies:** on the number (Configure your number > Messaging), set "A message comes in" to *Webhook*, `https://admin-v2.petwealth.com/api/webhooks/twilio`, **HTTP POST**. Twilio sends the STOP, START and HELP confirmation texts itself (built in for toll-free numbers); the app records the change on the customer.
 3. **Vercel**, project **petwealth-admin**, Production, each marked **Sensitive**:
-   - `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` (done)
-   - `TWILIO_FROM_NUMBER`: the toll-free number in E.164, e.g. `+18885551234`. **Add this only once verification shows Verified**: it's the switch that turns texts on.
+   - `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`
+   - `TWILIO_FROM_NUMBER`: the toll-free number in E.164 (`+18558930444`). It's the switch that turns texts on; removing it turns them off again.
    - Optional `TWILIO_WEBHOOK_URL` if Twilio calls a different address than the one above.
 4. Redeploy the admin. The notifications cron (every 10 minutes) starts sending.
 5. Make sure the Twilio account is upgraded from the free trial (a trial can only text verified numbers).
