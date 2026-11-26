@@ -18,7 +18,9 @@
   "dependencies": {
     "@anthropic-ai/sdk": "1.8.0",
     "@petwealth/domain": "workspace:*",
+    "ai": "7.0.169",
     "qrcode": "^1.5.4",
+    "sharp": "0.35.5",
     "zod": "^4.6.7"
   },
   "devDependencies": {

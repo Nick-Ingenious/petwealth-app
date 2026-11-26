@@ -325,6 +325,25 @@ export const petPhotos = pgTable("pet_photos", {
   ...timestamps,
 });
 
+/**
+ * AI-generated picture of a breed, shared by every pet of that species and
+ * breed that has no photo of its own. Only breeds from the picker list.
+ */
+export const breedAvatars = pgTable(
+  "breed_avatars",
+  {
+    id: id(),
+    species: speciesEnum().notNull(),
+    breed: text().notNull(),
+    mimeType: text().notNull(),
+    contentBase64: text().notNull(),
+    /** Image model that drew it, e.g. "bfl/flux-3-image". */
+    model: text().notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("breed_avatars_species_breed_idx").on(t.species, t.breed)],
+);
+
 /** Which kits travel in which shipment (a kit can have an outbound and a return, or a replacement). */
 export const shipmentKits = pgTable(
   "shipment_kits",

@@ -12,6 +12,7 @@ export * from "./services/notifications";
 export * from "./services/orders";
 export * from "./services/pets";
 export * from "./services/portal";
+export * from "./services/breed-avatars";
 export * from "./services/returns";
 export * from "./services/shopify";
 export * from "./services/staff";

@@ -16,6 +16,8 @@ import { and, desc, eq, getDb, inArray, schema as s, sql } from "@petwealth/db";
 import { recordEvent } from "../audit";
 import { customerActor, type CustomerContext } from "../context";
 import { conflict, invalid, notFound } from "../errors";
+import { BreedAvatarError } from "@petwealth/integrations/ai";
+import { breedAvatarRequestSchema, ensureBreedAvatar, syncPetAvatar, type BreedAvatarOptions } from "./breed-avatars";
 import { changeKitStatus } from "./kits";
 import { registerKitsForCustomer, type ReturnOptions } from "./returns";
 
@@ -109,11 +111,12 @@ export async function listMyPets(ctx: CustomerContext) {
 
 export async function createPet(ctx: CustomerContext, input: unknown) {
   const data = petCreateSchema.parse(input);
-  return getDb().transaction(async (tx) => {
+  const pet = await getDb().transaction(async (tx) => {
     const [pet] = await tx.insert(s.pets).values({ ...data, customerId: ctx.customerId }).returning();
     await recordEvent(tx, { entityType: "pet", entityId: pet!.id, type: "pet.created", ...customerActor(ctx), payload: { species: data.species } });
     return pet!;
   });
+  return { ...pet, photoUrl: await syncPetAvatar(pet.id) };
 }
 
 /** My Information: name, phone, text alerts and the default shipping address. */
@@ -174,7 +177,7 @@ export async function getMyPet(ctx: CustomerContext, petId: string) {
 export async function updateMyPet(ctx: CustomerContext, petId: string, input: unknown) {
   const pet = await myPet(ctx, petId);
   const data = petCreateSchema.parse(input);
-  return getDb().transaction(async (tx) => {
+  const updated = await getDb().transaction(async (tx) => {
     if (data.species !== pet.species && (await tx.$count(s.kits, eq(s.kits.petId, pet.id)))) {
       throw invalid(`${pet.name} already has a ${pet.species} kit, so the species can't change.`);
     }
@@ -182,6 +185,23 @@ export async function updateMyPet(ctx: CustomerContext, petId: string, input: un
     await recordEvent(tx, { entityType: "pet", entityId: pet.id, type: "pet.updated", ...customerActor(ctx), payload: {} });
     return updated!;
   });
+  // A new breed brings its own picture, unless the customer chose a photo.
+  return { ...updated, photoUrl: await syncPetAvatar(pet.id) };
+}
+
+/**
+ * The breed picture for the pet form, generated the first time anyone picks
+ * this breed. Null for breeds outside the picker list or if drawing it failed.
+ */
+export async function previewBreedAvatar(_ctx: CustomerContext, input: unknown, opts: BreedAvatarOptions = {}): Promise<{ url: string | null; failed: boolean }> {
+  const { species, breed } = breedAvatarRequestSchema.parse(input);
+  try {
+    return { url: await ensureBreedAvatar(species, breed, opts), failed: false };
+  } catch (e) {
+    if (!(e instanceof BreedAvatarError)) throw e;
+    console.warn(`[breed-avatar] ${species}/${breed}: ${e.message}`);
+    return { url: null, failed: true };
+  }
 }
 
 /** Remove a pet that never had a kit (e.g. added by mistake). */
@@ -215,12 +235,21 @@ export async function setMyPetPhoto(ctx: CustomerContext, petId: string, dataUrl
   });
 }
 
-export async function removeMyPetPhoto(ctx: CustomerContext, petId: string) {
+/** Remove the customer's own photo and go back to the breed picture (drawing it if needed). */
+export async function removeMyPetPhoto(ctx: CustomerContext, petId: string, opts: BreedAvatarOptions = {}): Promise<{ photoUrl: string | null }> {
   const pet = await myPet(ctx, petId);
   await getDb().transaction(async (tx) => {
     await tx.delete(s.petPhotos).where(eq(s.petPhotos.petId, pet.id));
     await tx.update(s.pets).set({ photoUrl: null }).where(eq(s.pets.id, pet.id));
+    await recordEvent(tx, { entityType: "pet", entityId: pet.id, type: "pet.photo_removed", ...customerActor(ctx), payload: {} });
   });
+  try {
+    await ensureBreedAvatar(pet.species, pet.breed, opts);
+  } catch (e) {
+    if (!(e instanceof BreedAvatarError)) throw e;
+    console.warn(`[breed-avatar] ${pet.species}/${pet.breed}: ${e.message}`);
+  }
+  return { photoUrl: await syncPetAvatar(pet.id) };
 }
 
 /** Photo bytes for the owner only. */
