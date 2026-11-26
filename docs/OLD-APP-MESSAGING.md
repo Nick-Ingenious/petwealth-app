@@ -60,12 +60,4 @@ These templates exist in `services/aws-ses.js` (and preview in `routes/email-pre
 
 ## Compared with the rebuild
 
-The rebuild queues one SMS per kit status change in `changeKitStatus()` (`packages/api/src/services/kits.ts`), mapped in `notificationForStatus()` (`packages/domain/src/kit-lifecycle.ts`), only when the customer has opted in and has a phone number:
-
-| Rebuild template | Kit status | Closest old message |
-|---|---|---|
-| `kit_shipped` | `shipped` | #2 Order shipped |
-| `kit_received` | `received_at_lab` | #6 Sample received, plus the "Kit received" email |
-| `results_ready` | `completed` | #8 Report available, plus the "Report ready" email |
-
-Old messages with no rebuild equivalent yet: order placed, order delivered, the mail-your-sample reminder, sample in transit, sample processing, the FedEx drop-off code and the review request. The sample reminder is the one most worth carrying over, since an unreturned kit is lost revenue.
+The rebuild texts (and emails) the moments that matter: sample on the way to the lab, received, results ready, and the mail-your-sample reminder (day 3 and day 10). See [SMS.md](SMS.md). Old messages with no rebuild equivalent: order placed, order delivered, sample processing and the review request.

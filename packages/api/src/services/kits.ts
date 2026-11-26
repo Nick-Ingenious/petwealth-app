@@ -20,6 +20,7 @@ import { recordEvent, type AuditActor } from "../audit";
 import { actorFields, requirePermission, type StaffContext } from "../context";
 import { AppError, conflict, notFound } from "../errors";
 import { likePattern, offsetOf, toPage } from "../pagination";
+import { queueText } from "./texts";
 
 export async function listKits(ctx: StaffContext, input: unknown) {
   requirePermission(ctx, "kits.view");
@@ -140,11 +141,13 @@ export async function changeKitStatus(
     payload: { from: kit.status, to, ...payload },
   });
 
-  // Queue the customer email. The notifications cron sends it a few minutes
-  // later, combining kits that changed together (e.g. one mailer) into one email.
+  // Queue the customer email (and a text, if they get texts). The notifications
+  // cron sends them a few minutes later, combining kits that changed together
+  // (e.g. one mailer) into one email and one text.
   const template = notificationForStatus(to);
   if (template && kit.customerId) {
     await tx.insert(s.notifications).values({ customerId: kit.customerId, kitId: kit.id, channel: "email", template });
+    await queueText(tx, { customerId: kit.customerId, kitId: kit.id, template });
   }
   return updated;
 }

@@ -20,6 +20,7 @@ import { kitStatusEmail } from "../emails/kit-status";
 import { mailSampleReminderEmail } from "../emails/mail-sample-reminder";
 import { returnLabelReadyEmail } from "../emails/return-label-ready";
 import { portalUrl } from "../portal-url";
+import { queueText } from "./texts";
 
 /** Give up on temporary failures after a day; the email would be stale by then. */
 const RETRY_FOR_MS = 24 * 60 * 60 * 1000;
@@ -152,7 +153,9 @@ async function renderMailSampleReminder(row: NotificationRow, now: number): Prom
   const earlier = await db
     .select({ id: s.notifications.id })
     .from(s.notifications)
-    .where(and(eq(s.notifications.kitId, row.kitId!), eq(s.notifications.template, MAIL_SAMPLE_REMINDER), lte(s.notifications.createdAt, row.createdAt)));
+    .where(
+      and(eq(s.notifications.kitId, row.kitId!), eq(s.notifications.template, MAIL_SAMPLE_REMINDER), eq(s.notifications.channel, "email"), lte(s.notifications.createdAt, row.createdAt)),
+    );
   const customer = await db.query.customers.findFirst({ where: eq(s.customers.id, row.customerId) });
   const kits = shipment.kits.map((sk) => ({ code: sk.kit.code ?? "", petName: sk.kit.pet?.name ?? null, panel: sk.kit.panel }));
   const first = kits.find((k) => k.code);
@@ -176,7 +179,9 @@ async function renderMailSampleReminder(row: NotificationRow, now: number): Prom
  * a mailer's FedEx code was created, while FedEx still hasn't picked it up.
  * Safe to run as often as you like; each mailer gets at most two reminders.
  */
-export async function queueMailSampleReminders(opts: { now?: () => number } = {}): Promise<{ queued: number }> {
+export async function queueMailSampleReminders(opts: { now?: () => number; email?: boolean; sms?: boolean } = {}): Promise<{ queued: number }> {
+  const wantEmail = opts.email ?? true;
+  const wantSms = opts.sms ?? true;
   const db = getDb();
   const now = (opts.now ?? Date.now)();
   const candidates = await db
@@ -203,17 +208,25 @@ export async function queueMailSampleReminders(opts: { now?: () => number } = {}
     if (!kits.length || kits.some((k) => !AWAITING_PICKUP.includes(k.status))) continue;
     // Reminders hang off the mailer's first kit (by id), so every run finds the same ones.
     const anchor = kits.map((k) => k.id).sort()[0]!;
-    const sent = await db
+    // One reminder round = the email and text queued together (same time).
+    const earlier = await db
       .select({ createdAt: s.notifications.createdAt })
       .from(s.notifications)
       .where(and(eq(s.notifications.template, MAIL_SAMPLE_REMINDER), inArray(s.notifications.kitId, kits.map((k) => k.id))))
       .orderBy(desc(s.notifications.createdAt));
-    const dueAfterDays = MAIL_REMINDER_DAYS[sent.length];
+    const rounds = [...new Set(earlier.map((r) => r.createdAt.getTime()))];
+    const dueAfterDays = MAIL_REMINDER_DAYS[rounds.length];
     if (dueAfterDays === undefined) continue;
     if (now - shipment.createdAt.getTime() < dueAfterDays * DAY_MS) continue;
-    if (sent[0] && now - sent[0].createdAt.getTime() < MIN_REMINDER_GAP_MS) continue;
-    await db.insert(s.notifications).values({ customerId: shipment.customerId!, kitId: anchor, channel: "email", template: MAIL_SAMPLE_REMINDER, createdAt: new Date(now) });
-    queued++;
+    if (rounds[0] !== undefined && now - rounds[0] < MIN_REMINDER_GAP_MS) continue;
+    const row = { customerId: shipment.customerId!, kitId: anchor, template: MAIL_SAMPLE_REMINDER, createdAt: new Date(now) } as const;
+    let any = false;
+    if (wantEmail) {
+      await db.insert(s.notifications).values({ ...row, channel: "email" });
+      any = true;
+    }
+    if (wantSms) any = (await queueText(db, row)) || any;
+    if (any) queued++;
   }
   return { queued };
 }

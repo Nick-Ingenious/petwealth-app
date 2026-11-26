@@ -62,7 +62,7 @@ export function OnboardingForm({ initial, needsAddress, next }: Props) {
 
       <label className="flex items-start gap-3 rounded-2xl bg-white p-4 text-sm text-zinc-600">
         <input type="checkbox" name="smsOptIn" defaultChecked={initial.smsOptIn} className="mt-0.5 size-5 accent-violet-600" />
-        <span>Text me when my kit ships, arrives at the lab, and when results are ready. Message &amp; data rates may apply. Reply STOP to opt out.</span>
+        <span>Text me a reminder to mail my sample, and when it&apos;s on the way to the lab, arrives, and when results are ready. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help.</span>
       </label>
 
       {state && !state.ok && !state.fieldErrors ? <p role="alert" className="text-sm text-red-600">{state.error}</p> : null}

@@ -149,8 +149,9 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
           className="mt-0.5 size-5 accent-violet-600"
         />
         <span className="text-base text-zinc-700">
-          Text me when my kit ships, arrives at the lab, and when results are ready. Message &amp;
-          data rates may apply. Reply STOP to opt out.
+          Text me a reminder to mail my sample, and when it&apos;s on the way to the lab, arrives,
+          and when results are ready. Message frequency varies. Message &amp; data rates may apply.
+          Reply STOP to opt out, HELP for help.
         </span>
       </label>
 
