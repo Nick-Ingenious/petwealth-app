@@ -22,6 +22,19 @@ export function describeKits(kits: ReturnLabelReadyData["kits"]): string {
   return join([...byPet].map(([pet, panels]) => `${pet ? `${pet}'s` : "your pet's"} ${join(panels)} test${panels.length > 1 ? "s" : ""}`));
 }
 
+/** The inline QR code (attached as cid:fedex-code) in a dashed card, with the RMA under it. */
+export function fedexCodeBlock(rmaNumber: string): string {
+  return `
+      <tr><td align="center" style="padding:8px 0 4px">
+        <table role="presentation" cellpadding="0" cellspacing="0" style="border:2px dashed #CAB3FF;border-radius:24px;background:#ffffff">
+          <tr><td align="center" style="padding:20px">
+            <img src="cid:fedex-code" width="220" height="220" alt="FedEx return code ${escapeHtml(rmaNumber)}" style="display:block;width:220px;height:220px;border:0">
+            <p style="margin:8px 0 0;font-family:${FONT};font-size:13px;line-height:18px;color:#52525b">RMA Number: ${escapeHtml(rmaNumber)}</p>
+          </td></tr>
+        </table>
+      </td></tr>`;
+}
+
 /** "Your FedEx code is ready": sent once the return QR code (or printable label) exists. */
 export function returnLabelReadyEmail(d: ReturnLabelReadyData): { subject: string; html: string; text: string; attachments: EmailAttachment[] } {
   const pdf = d.label?.format === "pdf";
@@ -43,15 +56,7 @@ export function returnLabelReadyEmail(d: ReturnLabelReadyData): { subject: strin
   let codeBlock = "";
   if (d.label && !pdf) {
     attachments.push({ filename: `fedex-code-${d.rmaNumber}.png`, contentBase64: d.label.contentBase64, contentType: d.label.mimeType, contentId: "fedex-code" });
-    codeBlock = `
-      <tr><td align="center" style="padding:8px 0 4px">
-        <table role="presentation" cellpadding="0" cellspacing="0" style="border:2px dashed #CAB3FF;border-radius:24px;background:#ffffff">
-          <tr><td align="center" style="padding:20px">
-            <img src="cid:fedex-code" width="220" height="220" alt="FedEx return code ${escapeHtml(d.rmaNumber)}" style="display:block;width:220px;height:220px;border:0">
-            <p style="margin:8px 0 0;font-family:${FONT};font-size:13px;line-height:18px;color:#52525b">RMA Number: ${escapeHtml(d.rmaNumber)}</p>
-          </td></tr>
-        </table>
-      </td></tr>`;
+    codeBlock = fedexCodeBlock(d.rmaNumber);
   } else if (d.label && pdf) {
     attachments.push({ filename: `fedex-label-${d.rmaNumber}.pdf`, contentBase64: d.label.contentBase64, contentType: d.label.mimeType });
   }
