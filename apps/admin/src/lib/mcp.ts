@@ -22,4 +22,7 @@ export const mcpResourceUrls: string[] = process.env.MCP_RESOURCE_URLS
 export const mcpAuthOptions = {
   resourceUrl: mcpResourceUrls,
   requiredScopes: ["profile", "email"],
+  // Every request needs a staff token, even listing tools, so Claude asks the
+  // user to sign in as soon as they connect instead of after the first call.
+  discoverable: false,
 } satisfies McpAuthOptions;
