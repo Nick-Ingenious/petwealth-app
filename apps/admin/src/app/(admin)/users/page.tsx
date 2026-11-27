@@ -18,7 +18,7 @@ export default async function UsersPage() {
       <PageHeader icon={<ShieldCheck className="size-6" />} title="User Management" description={`${users.length} staff users`} />
       {manage ? (
         <Card className="mb-6">
-          <CardHeader title="Invite a teammate" description="Staff sign in with their PetWealth Google account. Invitations are tied to the email address." />
+          <CardHeader title="Invite a teammate" description="Staff sign in with their Petwealth Google account. Invitations are tied to the email address." />
           <CardBody><InviteForm assignableRoles={assignable} /></CardBody>
         </Card>
       ) : null}

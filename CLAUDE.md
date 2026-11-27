@@ -1,4 +1,4 @@
-# PetWealth app
+# Petwealth app
 
 ## Design system
 

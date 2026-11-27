@@ -191,7 +191,7 @@ export function Dashboard({ greeting, firstName, rows, clerk }: { greeting: stri
         {/* Hero carousel on phones; on desktop just the tests banner (the other slides move to the sidebar). */}
         <section className="relative h-[555px] overflow-hidden bg-[#19242B] lg:h-auto lg:min-h-[480px] lg:rounded-[28px]" aria-label="Highlights">
           <header className="absolute inset-x-5 top-3 z-10 flex h-12 items-center justify-between lg:inset-x-10 lg:top-6">
-            <Link href="/" aria-label="PetWealth home">
+            <Link href="/" aria-label="Petwealth home">
               {light ? (
                 <Image src="/brand/logo-dark.svg" alt="petwealth" width={136} height={22} className="h-[22px] w-auto" />
               ) : (

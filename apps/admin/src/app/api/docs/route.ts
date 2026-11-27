@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { can } from "@petwealth/api";
 import { getStaff } from "@/lib/auth";
 
-const render = ApiReference({ url: "/api/openapi.json", pageTitle: "PetWealth Staff API", theme: "purple" });
+const render = ApiReference({ url: "/api/openapi.json", pageTitle: "Petwealth Staff API", theme: "purple" });
 
 /** Interactive API reference (Scalar). "Try it" calls use your staff session. */
 export async function GET(req: NextRequest) {

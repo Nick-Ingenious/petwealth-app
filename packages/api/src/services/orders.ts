@@ -162,7 +162,7 @@ const outboundShipmentSchema = z.object({
  * Record the outbound (kit → customer) tracking number for an order. One
  * shipment covers every non-cancelled kit on the order. Kits still "ordered"
  * move to "label_created"; the tracking cron then moves them to shipped and
- * delivered as FedEx reports. PetWealth ships with FedEx only.
+ * delivered as FedEx reports. Petwealth ships with FedEx only.
  */
 export async function saveOutboundShipment(ctx: StaffContext, input: z.input<typeof outboundShipmentSchema>) {
   requirePermission(ctx, "tracking.manage");

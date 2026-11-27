@@ -4,7 +4,7 @@ import { CarrierError, FedExCarrier, TestCarrier, getCarrier, type ReturnShipmen
 const req: ReturnShipmentRequest = {
   rmaNumber: "PWR0100001",
   from: { name: "Jordan Rivera", phone: "+14155550142", line1: "500 Example Ave", line2: "Apt 4", city: "San Francisco", region: "CA", postalCode: "94110", country: "US" },
-  to: { name: "Sample Receiving", company: "PetWealth Lab", phone: "+15555550100", line1: "1 Lab Way", city: "Austin", region: "TX", postalCode: "78701", country: "US" },
+  to: { name: "Sample Receiving", company: "Petwealth Lab", phone: "+15555550100", line1: "1 Lab Way", city: "Austin", region: "TX", postalCode: "78701", country: "US" },
   customerEmail: "Jordan@Example.com",
   kitCount: 2,
   weightLbs: 1,
@@ -40,7 +40,7 @@ describe("FedExCarrier", () => {
     const ship = JSON.parse(String(calls[1]!.init.body));
     expect((calls[1]!.init.headers as Record<string, string>).authorization).toBe("Bearer tok");
     expect(ship.requestedShipment.shipper.address.postalCode).toBe("94110"); // customer ships back
-    expect(ship.requestedShipment.recipients[0].contact.companyName).toBe("PetWealth Lab");
+    expect(ship.requestedShipment.recipients[0].contact.companyName).toBe("Petwealth Lab");
     expect(ship.requestedShipment.shipmentSpecialServices.specialServiceTypes).toEqual(["RETURN_SHIPMENT"]);
     // FedEx rejects RECIPIENT billing on returns (verified in the sandbox); our account pays as SENDER.
     expect(ship.requestedShipment.shippingChargesPayment.paymentType).toBe("SENDER");

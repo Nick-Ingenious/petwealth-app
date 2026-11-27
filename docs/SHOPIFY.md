@@ -1,6 +1,6 @@
-# Shopify → PetWealth orders and shipping
+# Shopify → Petwealth orders and shipping
 
-Paid Shopify orders become PetWealth orders and kits automatically. Kits are
+Paid Shopify orders become Petwealth orders and kits automatically. Kits are
 shipped by **ShipStation** (customers) and **Defender** (our 3PL); both write the
 fulfilment and tracking back to Shopify, and we read it from there to mark kits
 Shipped and Delivered.

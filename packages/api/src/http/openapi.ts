@@ -1,5 +1,5 @@
 /**
- * OpenAPI 3.1 contract for the PetWealth staff API (/api/v1).
+ * OpenAPI 3.1 contract for the Petwealth staff API (/api/v1).
  *
  * Request schemas are the SAME zod schemas the services parse with (from
  * @petwealth/domain), so the docs cannot drift from runtime validation.
@@ -159,10 +159,10 @@ export function getOpenApiDocument(serverUrl?: string) {
   cached ??= new OpenApiGeneratorV31(registry.definitions).generateDocument({
     openapi: "3.1.0",
     info: {
-      title: "PetWealth Staff API",
+      title: "Petwealth Staff API",
       version: "1.0.0",
       description:
-        "Internal API for PetWealth staff tools and the AI/MCP assistant. All endpoints enforce the caller's role permissions and write to the audit log. Responses are `{ data }`; errors are `{ error: { code, message } }`.",
+        "Internal API for Petwealth staff tools and the AI/MCP assistant. All endpoints enforce the caller's role permissions and write to the audit log. Responses are `{ data }`; errors are `{ error: { code, message } }`.",
     },
     tags: ["Dashboard", "Orders", "Kits", "Customers", "Pets"].map((name) => ({ name })),
   });

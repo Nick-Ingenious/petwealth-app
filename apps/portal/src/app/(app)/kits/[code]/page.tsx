@@ -110,7 +110,7 @@ export default async function KitPage({ params, searchParams }: PageProps<"/kits
           <ol className="mt-10 lg:mt-4">
             <Step title="Activate kit" state="done">
               <p className="text-lg text-zinc-700">
-                Your PetWealth health test kit is linked to <strong>{petName}</strong>
+                Your Petwealth health test kit is linked to <strong>{petName}</strong>
               </p>
               <p className="mt-2 inline-flex flex-wrap items-center gap-x-2 rounded-xl bg-lilac-100 px-3 py-1.5 font-mono text-lg">
                 <TestTube2 className="size-4 text-violet-500" aria-hidden /> <span className="whitespace-nowrap">ID: {kit.code}</span> <span className="font-sans text-zinc-500">({PANEL_LABEL[kit.panel]})</span>

@@ -5,7 +5,7 @@ import { CLERK_ENABLED } from "@/lib/env";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "PetWealth Admin", template: "%s · PetWealth Admin" },
+  title: { default: "Petwealth Admin", template: "%s · Petwealth Admin" },
   robots: { index: false, follow: false },
 };
 

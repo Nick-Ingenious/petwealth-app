@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "PetWealth design system: Tailwind v4 theme + framework-agnostic React primitives shared by admin, portal (and mirrored in mobile).",
+  "description": "Petwealth design system: Tailwind v4 theme + framework-agnostic React primitives shared by admin, portal (and mirrored in mobile).",
   "exports": {
     ".": "./src/index.ts",
     "./styles.css": "./src/styles.css"

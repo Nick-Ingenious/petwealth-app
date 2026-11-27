@@ -33,7 +33,7 @@ Customer scans tube QR ─► picks pet ─► "Register N kits"
 | `TestCarrier` | No FedEx config, **never in Vercel production** | Real scannable QR; tracking simulated from label age: picked up at +10 min, delivered at +30 min. Mailers are tagged "Test carrier" in admin. |
 
 ### FedEx setup
-Customers get a **label-less QR return**: the portal shows a QR code of the RMA number (e.g. `PWR0100001`), a FedEx counter scans it and prints the label. This is the FedEx Returns API (`/returns/v1/rma`), the same flow and settings the old PetWealth backend uses in production. FedEx holds the lab's address under a ship-to address id, and PetWealth pays (`shippingCostResponsibility: Retailer`). The customer's home address is not sent.
+Customers get a **label-less QR return**: the portal shows a QR code of the RMA number (e.g. `PWR0100001`), a FedEx counter scans it and prints the label. This is the FedEx Returns API (`/returns/v1/rma`), the same flow and settings the old Petwealth backend uses in production. FedEx holds the lab's address under a ship-to address id, and Petwealth pays (`shippingCostResponsibility: Retailer`). The customer's home address is not sent.
 
 Set in Vercel on **both** projects, choosing the environment when you add each variable:
 
@@ -46,7 +46,7 @@ Set in Vercel on **both** projects, choosing the environment when you add each v
 | `FEDEX_RETURN_SKU` | `7681814_DEFAULT_ITEM` | `6067998_DEFAULT_ITEM` |
 
 - The FedEx server follows the Vercel environment (Production → `apis.fedex.com`, everything else → sandbox).
-- Fixed return details live in code (`RETURNS_DEFAULTS` in `fedex.ts`): service `FDXE`, reason "Diagnostic sample return to laboratory", PetWealth's phone and address.
+- Fixed return details live in code (`RETURNS_DEFAULTS` in `fedex.ts`): service `FDXE`, reason "Diagnostic sample return to laboratory", Petwealth's phone and address.
 - Production refuses to create returns unless all three Returns settings are set.
 - **RMA numbers must not collide with the old app's.** FedEx keeps every RMA the old app created; ours start at `PWR0100000`. A collision fails the mailer with a clear message rather than reusing someone else's return. Retrying our own RMA (e.g. after a timeout) reuses it.
 - Fallback (no Returns settings, never in production): printed PDF label via the Ship API, billed to our account (`SENDER`), service `FEDEX_RETURN_SERVICE_TYPE` (default `FEDEX_GROUND`; the sandbox can't ship Ground), to `LAB_SHIP_TO_*`.

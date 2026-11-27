@@ -19,7 +19,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 overflow-y-auto border-r border-line bg-surface lg:block">
         <div className="flex items-center gap-3 border-b border-line px-6 py-5">
           <div>
-            <Image src="/brand/logo-dark.svg" alt="PetWealth" width={137} height={22} priority className="h-[22px] w-auto" />
+            <Image src="/brand/logo-dark.svg" alt="Petwealth" width={137} height={22} priority className="h-[22px] w-auto" />
             <p className="mt-1 text-xs text-ink-muted">Admin Portal</p>
           </div>
         </div>
