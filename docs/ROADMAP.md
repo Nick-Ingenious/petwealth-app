@@ -8,7 +8,7 @@ Monorepo, schema + seed, kit lifecycle, RBAC, admin: Dashboard, Orders, Tests, C
 - ✅ Kit registration → one return mailer (RMA + FedEx code) per group; FedEx adapter (+ test carrier); tracking cron moves kits to In Transit — see [SHIPPING.md](SHIPPING.md). Next: verify against FedEx sandbox, QR returns (FedEx Returns Technology).
 - ✅ Outbound shipping: ShipStation / Defender fulfilments read back from Shopify (`fulfillments/create` / `update` webhooks + Admin API backfill) mark kits Shipped and Delivered — see [SHOPIFY.md](SHOPIFY.md).
 - ~~Twilio SMS worker~~ Built (see [SMS.md](SMS.md)); needs toll-free verification (in review) and `TWILIO_FROM_NUMBER` to go live. Was: Twilio SMS worker for `notifications` rows (`queued` → `sent` → `delivered`), STOP handling. Verification takes days to weeks, so it was started early. The old app never sent SMS; see [OLD-APP-MESSAGING.md](OLD-APP-MESSAGING.md) for what it did send.
-- ✅ Lab Upload (WellResult CSV) → review → release; customer results report + PDF. Next: Rerun Queue page, Kit Tracking.
+- ✅ Lab Upload (WellResult CSV) → cleanup + AI review → review → release; customer results report + PDF. See [LAB-UPLOADS.md](LAB-UPLOADS.md). Next: Rerun Queue page, Kit Tracking.
 - ✅ `apps/portal` (first pass): onboarding, add pet, kit activation with QR deep links + in-app scan, FedEx code screen, kit journey — see [PORTAL.md](PORTAL.md). Next: Vercel project + customer Clerk app, results view (with 2d), pet photos, profile editing.
 
 ## Milestone 3 — AI

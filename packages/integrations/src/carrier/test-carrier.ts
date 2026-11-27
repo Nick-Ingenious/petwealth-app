@@ -19,7 +19,8 @@ export class TestCarrier implements Carrier {
   constructor(private readonly now: () => number = Date.now) {}
 
   async createReturnShipment(req: ReturnShipmentRequest): Promise<CreatedShipment> {
-    const trackingNumber = `TEST${Math.floor(this.now() / 1000)}${String(randomInt(1000)).padStart(3, "0")}`;
+    // Timestamp first (read back by track()), then 9 random digits so tests running at once never collide.
+    const trackingNumber = `TEST${Math.floor(this.now() / 1000)}${String(randomInt(1e9)).padStart(9, "0")}`;
     const png = await QRCode.toBuffer(`PETWEALTH-TEST-RETURN|${req.rmaNumber}|${trackingNumber}`, { width: 512, margin: 2 });
     return { trackingNumber, label: { format: "qr_png", mimeType: "image/png", contentBase64: png.toString("base64") } };
   }

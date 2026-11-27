@@ -5,7 +5,9 @@ import { AppError, can, getLabBatch } from "@petwealth/api";
 import { Badge, Card, CardBody, CardHeader, PageHeader } from "@petwealth/ui";
 import { requireStaff } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
+import { AiReview } from "./ai-review";
 import { AssignForm } from "./assign-form";
+import { HeldRowsList } from "./held-rows";
 import { ReviewTable } from "./review-table";
 
 export const metadata = { title: "Lab run" };
@@ -20,6 +22,19 @@ export default async function LabBatchPage({ params }: PageProps<"/lab-results/[
     throw e;
   });
   const failedControls = batch.runControls.filter((c) => !c.passed);
+  const canManage = can(staff, "lab_results.upload");
+  const c = batch.cleanup;
+  const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+  const cleaned = c
+    ? [
+        c.idsNormalized ? `${plural(c.idsNormalized, "kit ID")} tidied (spaces, capitals)` : null,
+        c.plateControlRows ? `${plural(c.plateControlRows, "plate control row")} checked as run controls` : null,
+        c.qualityCheckRows ? `${plural(c.qualityCheckRows, "quality-check row")} set aside` : null,
+        c.offPanelRows ? `${plural(c.offPanelRows, "row")} for targets not on the panel left out` : null,
+        c.heldRows ? `${plural(c.heldRows, "row")} with no kit ID held` : null,
+      ].filter(Boolean)
+    : [];
+  const openHeld = batch.held.filter((h) => !h.dismissedAt);
 
   return (
     <>
@@ -33,6 +48,19 @@ export default async function LabBatchPage({ params }: PageProps<"/lab-results/[
         title={`Run #${batch.number}`}
         description={`${batch.filename} · ${batch.rowCount} rows · uploaded ${formatDateTime(batch.createdAt)}${batch.uploadedBy ? ` by ${batch.uploadedBy}` : ""}`}
       />
+
+      {cleaned.length ? (
+        <p className="mb-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm text-ink-muted">
+          <span className="font-medium text-ink">Cleaned before import:</span> {cleaned.join(" · ")}.
+        </p>
+      ) : null}
+
+      <Card className="mb-6">
+        <CardHeader title="AI review" description="Claude checks what the cleanup couldn't settle. It only suggests; nothing changes until you apply it." />
+        <CardBody>
+          <AiReview batchId={batch.id} review={batch.aiReview} unmatchedSamples={batch.unmatched.map((u) => u.sample)} canManage={canManage} />
+        </CardBody>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
@@ -98,6 +126,22 @@ export default async function LabBatchPage({ params }: PageProps<"/lab-results/[
           ) : null}
         </Card>
       </div>
+
+      {batch.held.length ? (
+        <Card className="mt-6">
+          <CardHeader
+            title="Rows with no kit ID"
+            description={
+              openHeld.length
+                ? "These rows have no kit ID in the Sample column, so they weren't imported. We never guess which kit they belong to."
+                : "All set aside."
+            }
+          />
+          <CardBody>
+            <HeldRowsList batchId={batch.id} held={batch.held} canManage={canManage} />
+          </CardBody>
+        </Card>
+      ) : null}
 
       <Card className="mt-6 overflow-hidden">
         <CardHeader

@@ -85,6 +85,13 @@
       "when": 1795659090516,
       "tag": "0011_rename_breeds",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795721696683,
+      "tag": "0012_lab_upload_cleanup",
+      "breakpoints": true
     }
   ]
 }

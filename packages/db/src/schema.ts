@@ -33,8 +33,11 @@ import {
   SPECIES,
   TEST_TYPES,
   type ControlReading,
+  type LabCleanupSummary,
+  type LabRunReview,
   type RunControl,
   type SampleGroup,
+  type StoredHeldRows,
   type TargetResult,
 } from "@petwealth/domain";
 
@@ -383,6 +386,12 @@ export const labBatches = pgTable("lab_batches", {
   runControls: jsonb().$type<RunControl[]>().notNull().default([]),
   /** Samples whose code didn't match a kit (typos, unknown kits). Staff can assign them. */
   unmatched: jsonb().$type<(SampleGroup & { reason: string })[]>().notNull().default([]),
+  /** Rows with no kit ID, grouped by panel, held for a person (never guessed). */
+  held: jsonb().$type<StoredHeldRows[]>().notNull().default([]),
+  /** What cleanup did to the file (IDs uppercased, controls and off-panel rows set aside). */
+  cleanup: jsonb().$type<LabCleanupSummary>(),
+  /** AI review of the upload: plain-English notes and checked kit suggestions. */
+  aiReview: jsonb().$type<LabRunReview>(),
   /** The uploaded file, kept for traceability. */
   sourceCsv: text(),
   uploadedById: uuid().references(() => staffUsers.id),

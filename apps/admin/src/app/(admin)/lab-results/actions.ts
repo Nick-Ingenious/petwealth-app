@@ -1,9 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import {
   assignUnmatchedSample,
+  dismissHeldRows,
   draftAiReport,
+  reviewLabBatch,
   holdLabResultForRerun,
   releaseLabResults,
   saveAiReport,
@@ -15,6 +18,8 @@ import { runAction, type ActionResult } from "@/lib/action";
 export async function uploadLabFileAction(filename: string, csv: string): Promise<ActionResult<{ id: string }>> {
   const result = await runAction(async (staff) => {
     const r = await uploadLabFile(staff, { filename, csv });
+    // AI review runs after the response, so uploading stays quick; the page shows "Reviewing" until it's done.
+    after(() => reviewLabBatch(staff, r.id).catch((e) => console.error("[lab-review]", e)));
     return { id: r.id };
   });
   if (result.ok) revalidatePath("/lab-results");
@@ -52,6 +57,26 @@ export async function draftSummaryAction(batchId: string, resultId: string): Pro
 /** Save staff edits to a summary, as a draft or approved for the customer. */
 export async function saveSummaryAction(batchId: string, reportId: string, content: unknown, approve: boolean): Promise<ActionResult<AiReportView>> {
   const result = await runAction((staff) => saveAiReport(staff, { reportId, content, approve }));
+  revalidatePath(`/lab-results/${batchId}`);
+  return result;
+}
+
+/** Run the AI review of an upload again (e.g. after assigning samples). */
+export async function rerunReviewAction(batchId: string): Promise<ActionResult> {
+  const result = await runAction(async (staff) => {
+    await reviewLabBatch(staff, batchId);
+    return undefined;
+  });
+  revalidatePath(`/lab-results/${batchId}`);
+  return result;
+}
+
+/** Set aside rows that had no kit ID. */
+export async function dismissHeldAction(batchId: string, panelCode: string): Promise<ActionResult> {
+  const result = await runAction(async (staff) => {
+    await dismissHeldRows(staff, { batchId, panelCode });
+    return undefined;
+  });
   revalidatePath(`/lab-results/${batchId}`);
   return result;
 }

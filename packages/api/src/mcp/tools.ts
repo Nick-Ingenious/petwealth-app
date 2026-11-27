@@ -13,6 +13,7 @@ import { getCustomer, listCustomers } from "../services/customers";
 import { getDashboard } from "../services/dashboard";
 import { getKit, listKits } from "../services/kits";
 import { getLabBatch, listLabBatches, uploadLabFile } from "../services/lab";
+import { reviewLabBatch } from "../services/lab-review";
 import { getOrder, listOrders } from "../services/orders";
 import { getPet, listPets } from "../services/pets";
 
@@ -44,6 +45,9 @@ async function labRunSummary(ctx: StaffContext, id: string, adminUrl: string) {
     uploadedBy: b.uploadedBy,
     link: `${adminUrl}/lab-results/${b.id}`,
     runControls: b.runControls,
+    cleanup: b.cleanup,
+    heldRows: b.held.filter((h) => !h.dismissedAt).map((h) => ({ panel: h.panelCode, looksLike: h.kitPrefix, wells: h.wells, detected: h.detected })),
+    aiReview: b.aiReview ? { status: b.aiReview.status, summary: b.aiReview.summary, notes: b.aiReview.notes } : null,
     unmatched: b.unmatched.map((u) => ({ sample: u.sample, reason: u.reason, suggestedCode: u.suggestedCode, detected: u.detected })),
     kits: b.results.map((r) => ({
       kitCode: r.kitCode,
@@ -161,7 +165,7 @@ export const STAFF_TOOLS: StaffTool[] = [
     name: "upload_lab_results",
     title: "Upload lab results",
     description:
-      "Ingest the lab's PCR export (the WellResult CSV, exactly as exported, controls included). Matches each Sample to its kit, calls each pathogen detected at Cq 34 or lower, flags anything to check, and moves received kits to Processing. Nothing is released to customers: staff review and release on the Lab Results page. Pass the full CSV text.",
+      "Ingest the lab's PCR export (the WellResult CSV, exactly as exported, controls included). Cleans it first (uppercases kit IDs, checks plate controls separately, ignores quality-check and off-panel targets, holds rows with no kit ID), matches each Sample to its kit, calls each pathogen detected at Cq 34 or lower, flags anything to check, moves received kits to Processing, then runs an AI review with notes and suggested kits for unmatched samples. Nothing is released to customers and no suggestion is applied: staff review on the Lab Results page. Pass the full CSV text.",
     inputSchema: z.object({
       filename: z.string().min(1).max(255).describe("The file name, e.g. WellResult-2026-11-23.csv"),
       csv: z.string().min(1).describe("The complete CSV text, header row included"),
@@ -169,6 +173,7 @@ export const STAFF_TOOLS: StaffTool[] = [
     readOnly: false,
     run: async (ctx, a, env) => {
       const up = await uploadLabFile(ctx, { filename: a.filename, csv: a.csv });
+      await reviewLabBatch(ctx, up.id); // records its own failure; never blocks the upload
       return { uploaded: up, ...(await labRunSummary(ctx, up.id, env.adminUrl)) };
     },
   }),
