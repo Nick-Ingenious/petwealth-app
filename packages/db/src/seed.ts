@@ -70,7 +70,7 @@ async function main() {
   );
   const superAdminEmail = (process.env.SEED_SUPER_ADMIN_EMAIL ?? "admin@petwealth.com").toLowerCase();
   const staffSeed = [
-    { email: superAdminEmail, name: "PetWealth Admin", role: "super_admin" as const },
+    { email: superAdminEmail, name: "Petwealth Admin", role: "super_admin" as const },
     { email: "manager@petwealth.com", name: "Morgan Manager", role: "manager" as const },
     { email: "ops@petwealth.com", name: "Olivia Ops", role: "ops" as const },
     { email: "support@petwealth.com", name: "Sam Support", role: "customer_support" as const },

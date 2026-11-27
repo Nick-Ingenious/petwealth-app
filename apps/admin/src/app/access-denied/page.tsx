@@ -16,7 +16,7 @@ export default async function AccessDenied({ searchParams }: PageProps<"/access-
         <p className="mt-2 text-sm text-ink-muted">
           {perm
             ? `Your role doesn't include “${perm.label}”. Ask a Super Admin to grant it on the Permissions page.`
-            : "Your account isn't an active PetWealth staff account. Ask a Super Admin to invite your @petwealth.com email."}
+            : "Your account isn't an active Petwealth staff account. Ask a Super Admin to invite your @petwealth.com email."}
         </p>
         <div className="mt-6 flex justify-center gap-2">
           {perm ? (

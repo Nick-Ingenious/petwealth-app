@@ -25,7 +25,7 @@ export function apiRoute<P = Record<string, never>>(handler: Handler<P>) {
       }
     }
     const staff = await getStaff("api");
-    if (!staff) return problem(401, "unauthenticated", "Sign in as PetWealth staff to use the API.");
+    if (!staff) return problem(401, "unauthenticated", "Sign in as Petwealth staff to use the API.");
     try {
       const data = await handler({ staff, req, params: await segment.params });
       return NextResponse.json({ data }, { headers: { "Cache-Control": "no-store" } });

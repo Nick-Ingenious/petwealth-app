@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return new NextResponse(new Uint8Array(label.content), {
       headers: {
         "content-type": label.mimeType,
-        "content-disposition": `${download ? "attachment" : "inline"}; filename="PetWealth-FedEx-${label.rmaNumber}.${ext}"`,
+        "content-disposition": `${download ? "attachment" : "inline"}; filename="Petwealth-FedEx-${label.rmaNumber}.${ext}"`,
         "cache-control": "private, no-store",
         "x-content-type-options": "nosniff",
       },

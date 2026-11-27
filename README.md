@@ -1,6 +1,6 @@
-# PetWealth Platform
+# Petwealth Platform
 
-Rebuild of the PetWealth admin + customer platform: pet health test kits sold on Shopify → shipped via FedEx → registered by the customer → tested by the lab → results explained with AI.
+Rebuild of the Petwealth admin + customer platform: pet health test kits sold on Shopify → shipped via FedEx → registered by the customer → tested by the lab → results explained with AI.
 
 | App / package | What it is |
 |---|---|

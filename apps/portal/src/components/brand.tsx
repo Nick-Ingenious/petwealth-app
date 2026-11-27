@@ -3,11 +3,11 @@ import Link from "next/link";
 import { QrCode } from "lucide-react";
 import { PANEL_LABEL, type Panel, type Species } from "@petwealth/domain";
 
-/** The PetWealth logo lockup (icon + wordmark) from the brand files. Never retype it in a font. */
+/** The Petwealth logo lockup (icon + wordmark) from the brand files. Never retype it in a font. */
 export function Wordmark() {
   return (
     <span className="flex items-center gap-2">
-      <Image src="/brand/logo-dark.svg" alt="PetWealth" width={156} height={25} priority className="h-[25px] w-auto" />
+      <Image src="/brand/logo-dark.svg" alt="Petwealth" width={156} height={25} priority className="h-[25px] w-auto" />
       <span className="rounded-md bg-lilac-100 px-2 py-0.5 text-xs font-semibold tracking-wide text-violet-600">BETA</span>
     </span>
   );
@@ -75,7 +75,7 @@ export function HeroDog() {
 export function Header({ showCode = true }: { showCode?: boolean }) {
   return (
     <header className="flex items-center justify-between py-5">
-      <Link href="/" aria-label="PetWealth home">
+      <Link href="/" aria-label="Petwealth home">
         <Wordmark />
       </Link>
       {showCode ? (

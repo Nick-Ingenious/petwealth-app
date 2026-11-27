@@ -5,7 +5,7 @@ import { authLocalization } from "@/components/auth-appearance";
 import { CLERK_ENABLED } from "@/lib/env";
 import "./globals.css";
 
-const DESCRIPTION = "Register your PetWealth health test kits and follow your pet's results.";
+const DESCRIPTION = "Register your Petwealth health test kits and follow your pet's results.";
 
 /**
  * Link preview picture: a small JPEG (about 40 KB). Messaging apps skip large
@@ -22,18 +22,18 @@ const SHARE_IMAGE = {
 export const metadata: Metadata = {
   // Makes the share image and icon links absolute (the address people share).
   metadataBase: new URL(process.env.PORTAL_URL?.trim() || "https://app.petwealth.com"),
-  title: { default: "PetWealth", template: "%s · PetWealth" },
+  title: { default: "Petwealth", template: "%s · Petwealth" },
   description: DESCRIPTION,
   // Link previews: the same title on every page, whatever page was shared.
   openGraph: {
     type: "website",
-    siteName: "PetWealth",
-    title: "PetWealth: Love, backed by science.",
+    siteName: "Petwealth",
+    title: "Petwealth: Love, backed by science.",
     description: DESCRIPTION,
     locale: "en_US",
     images: [SHARE_IMAGE],
   },
-  twitter: { card: "summary_large_image", title: "PetWealth: Love, backed by science.", description: DESCRIPTION, images: [SHARE_IMAGE] },
+  twitter: { card: "summary_large_image", title: "Petwealth: Love, backed by science.", description: DESCRIPTION, images: [SHARE_IMAGE] },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#f8f6f2" };

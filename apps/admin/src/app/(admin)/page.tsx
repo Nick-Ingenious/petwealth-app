@@ -29,7 +29,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       <PageHeader
         icon={<LayoutGrid className="size-6" />}
         title="Dashboard"
-        description={`Welcome back${staff.name ? `, ${staff.name.split(" ")[0]}` : ""}. Here's your PetWealth overview.`}
+        description={`Welcome back${staff.name ? `, ${staff.name.split(" ")[0]}` : ""}. Here's your Petwealth overview.`}
         actions={<FilterSelect name="days" label="Last 30 days" options={RANGES.filter((r) => r.value !== "30")} />}
       />
 

@@ -1,5 +1,5 @@
 /**
- * PetWealth database schema.
+ * Petwealth database schema.
  *
  * Conventions
  * - Primary keys are UUIDv7-style random UUIDs (`gen_random_uuid()`); human

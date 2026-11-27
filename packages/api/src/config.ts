@@ -9,7 +9,7 @@ import type { Address } from "@petwealth/integrations/carrier";
 export function labAddress(env: Record<string, string | undefined> = process.env): Address {
   const a: Address = {
     name: env.LAB_SHIP_TO_NAME ?? "Sample Receiving",
-    company: env.LAB_SHIP_TO_COMPANY ?? "PetWealth Lab",
+    company: env.LAB_SHIP_TO_COMPANY ?? "Petwealth Lab",
     phone: env.LAB_SHIP_TO_PHONE ?? "",
     line1: env.LAB_SHIP_TO_LINE1 ?? "",
     line2: env.LAB_SHIP_TO_LINE2 ?? null,

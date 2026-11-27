@@ -6,7 +6,7 @@
  * (`/returns/v1/rma`, "FedEx Returns Technology"), configured with our retailer
  * id, the lab's ship-to address id and a return SKU. The QR is simply our RMA
  * number; FedEx looks the return up by it when scanned. Same flow and settings
- * as the old PetWealth backend.
+ * as the old Petwealth backend.
  *
  * Without the Returns settings (e.g. a sandbox that isn't enrolled), the Ship
  * API creates a printable PDF return label instead. Production requires the
@@ -44,9 +44,9 @@ const TIMEOUT_MS = 15_000;
 const TRACK_BATCH = 30; // FedEx Track API limit per request
 
 /**
- * PetWealth's fixed details on every FedEx return authorization (same values
+ * Petwealth's fixed details on every FedEx return authorization (same values
  * as the old backend). Counter drop-off doesn't need the customer's home
- * address, so FedEx gets the company address instead; PetWealth pays.
+ * address, so FedEx gets the company address instead; Petwealth pays.
  */
 const RETURNS_DEFAULTS = {
   shippingService: "FDXE",
@@ -191,7 +191,7 @@ export class FedExCarrier implements Carrier {
           shipToAddressId: ret.shipToAddressId,
           customer: {
             id: ret.retailerId,
-            contact: { personName: req.from.name.slice(0, 70) || "PetWealth Customer", emailAddress: email, phoneNumber: RETURNS_DEFAULTS.phoneNumber },
+            contact: { personName: req.from.name.slice(0, 70) || "Petwealth Customer", emailAddress: email, phoneNumber: RETURNS_DEFAULTS.phoneNumber },
             address: RETURNS_DEFAULTS.address,
           },
           orders: [
@@ -265,7 +265,7 @@ export class FedExCarrier implements Carrier {
         shippingChargesPayment: { paymentType: "SENDER", payor: { responsibleParty: { accountNumber: { value: this.cfg.accountNumber } } } },
         shipmentSpecialServices: {
           specialServiceTypes: ["RETURN_SHIPMENT"],
-          returnShipmentDetail: { returnType: "PRINT_RETURN_LABEL", rma: { reason: `PetWealth sample return ${req.rmaNumber}` } },
+          returnShipmentDetail: { returnType: "PRINT_RETURN_LABEL", rma: { reason: `Petwealth sample return ${req.rmaNumber}` } },
         },
         labelSpecification: { imageType: "PDF", labelStockType: "PAPER_85X11_TOP_HALF_LABEL" },
         requestedPackageLineItems: [

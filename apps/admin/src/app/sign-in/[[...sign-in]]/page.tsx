@@ -12,7 +12,7 @@ export default function SignInPage() {
     <main className="grid min-h-dvh place-items-center bg-canvas p-6">
       <div className="flex flex-col items-center gap-6">
         <div className="flex flex-col items-center gap-2">
-          <Image src="/brand/logo-dark.svg" alt="PetWealth" width={175} height={28} priority className="h-7 w-auto" />
+          <Image src="/brand/logo-dark.svg" alt="Petwealth" width={175} height={28} priority className="h-7 w-auto" />
           <p className="text-sm text-ink-muted">Staff portal</p>
         </div>
         <SignIn />
