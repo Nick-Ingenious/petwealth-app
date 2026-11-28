@@ -160,6 +160,7 @@ export const addresses = pgTable("addresses", {
   postalCode: text().notNull(),
   country: text().notNull().default("US"),
   isDefault: boolean().notNull().default(false),
+  legacyId: text().unique(),
   ...timestamps,
 });
 
@@ -179,6 +180,10 @@ export const pets = pgTable(
     spayedNeutered: boolean(),
     weightLbs: real(),
     photoUrl: text(),
+    microchip: text(),
+    /** Notes from the pet's vet, carried over from the old app. */
+    vetNotes: text(),
+    notes: text(),
     legacyId: text().unique(),
     ...timestamps,
   },
@@ -220,6 +225,8 @@ export const orders = pgTable(
     placedAt: timestamp({ withTimezone: true }).notNull(),
     cancelledAt: timestamp({ withTimezone: true }),
     cancelReason: text(),
+    /** The old app's order number, e.g. ORDER-GCS-123456-789. Customers may still quote it. */
+    legacyOrderNumber: text().unique(),
     legacyId: text().unique(),
     ...timestamps,
   },
@@ -240,6 +247,7 @@ export const orderItems = pgTable(
     unitPriceCents: integer().notNull(),
     /** Shopify line item id, so fulfilments can be matched to the kits they shipped. */
     shopifyLineItemId: text(),
+    legacyId: text().unique(),
   },
   (t) => [index("order_items_order_idx").on(t.orderId)],
 );
@@ -424,6 +432,7 @@ export const labResults = pgTable(
     pdfUrl: text(),
     reportedAt: timestamp({ withTimezone: true }).notNull(),
     releasedAt: timestamp({ withTimezone: true }),
+    legacyId: text().unique(),
     ...timestamps,
   },
   (t) => [
@@ -444,6 +453,7 @@ export const aiReports = pgTable("ai_reports", {
   content: jsonb().$type<Record<string, unknown>>().notNull(),
   reviewedById: uuid().references(() => staffUsers.id),
   reviewedAt: timestamp({ withTimezone: true }),
+  legacyId: text().unique(),
   ...timestamps,
 });
 
@@ -456,6 +466,7 @@ export const rerunQueue = pgTable("rerun_queue", {
   reason: text(),
   attempts: integer().notNull().default(1),
   status: rerunStatusEnum().notNull().default("active"),
+  legacyId: text().unique(),
   ...timestamps,
 });
 

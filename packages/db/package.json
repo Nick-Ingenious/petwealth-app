@@ -14,7 +14,9 @@
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
     "seed": "tsx --env-file-if-exists=../../.env src/seed.ts",
     "studio": "drizzle-kit studio",
-    "bootstrap": "tsx --env-file-if-exists=../../.env src/bootstrap.ts"
+    "bootstrap": "tsx --env-file-if-exists=../../.env src/bootstrap.ts",
+    "test": "vitest run",
+    "legacy:import": "tsx --env-file-if-exists=../../.env src/legacy/import.ts"
   },
   "dependencies": {
     "@petwealth/domain": "workspace:*",
@@ -26,6 +28,7 @@
     "@types/node": "^24.0.0",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vitest": "^5.1.1"
   }
 }
